@@ -1,18 +1,17 @@
 """CLI interface for DevGuard."""
 
 import asyncio
-import typer
 import logging
 from pathlib import Path
-from typing import Optional
 
+import typer
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.table import Table
 
 from .core.config import Config, load_config
 from .core.swarm import DevGuardSwarm
-from .notifications import NotificationManager, NotificationLevel, NotificationMessage
+from .notifications import NotificationLevel, NotificationManager, NotificationMessage
 
 # Initialize rich console
 console = Console()
@@ -37,7 +36,7 @@ def setup_logging(level: str = "INFO") -> None:
 
 @app.command()
 def start(
-    config_file: Optional[Path] = typer.Option(
+    config_file: Path | None = typer.Option(
         None,
         "--config",
         "-c",
@@ -142,7 +141,7 @@ def config(
         "--init",
         help="Initialize default configuration"
     ),
-    config_file: Optional[Path] = typer.Option(
+    config_file: Path | None = typer.Option(
         None,
         "--file",
         "-f",
@@ -232,7 +231,7 @@ def models(
         "-p",
         help="LLM provider (ollama, openrouter)"
     ),
-    pull: Optional[str] = typer.Option(
+    pull: str | None = typer.Option(
         None,
         "--pull",
         help="Pull/download a specific model"
@@ -622,7 +621,7 @@ def resume_agent(agent_id: str):
 def inject_task(
     task_type: str = typer.Argument(..., help="Type of task (code_generation, testing, etc.)"),
     description: str = typer.Argument(..., help="Task description"),
-    agent_id: Optional[str] = typer.Option(None, "--agent", "-a", help="Target agent ID"),
+    agent_id: str | None = typer.Option(None, "--agent", "-a", help="Target agent ID"),
     priority: str = typer.Option("high", "--priority", "-p", help="Task priority (low, normal, high, critical)")
 ):
     """Inject a high-priority task into the system."""
@@ -732,8 +731,8 @@ def agent_details(agent_id: str):
 
 @app.command()
 def list_tasks(
-    status: Optional[str] = typer.Option(None, "--status", "-s", help="Filter by status"),
-    agent_id: Optional[str] = typer.Option(None, "--agent", "-a", help="Filter by agent"),
+    status: str | None = typer.Option(None, "--status", "-s", help="Filter by status"),
+    agent_id: str | None = typer.Option(None, "--agent", "-a", help="Filter by agent"),
     limit: int = typer.Option(20, "--limit", "-l", help="Maximum number of tasks to show")
 ):
     """List tasks with optional filtering."""
@@ -941,7 +940,7 @@ def _show_agent_details(swarm, agent_id: str):
 @app.command("notify")
 def send_notification(
     message: str = typer.Argument(..., help="Notification message"),
-    title: Optional[str] = typer.Option(
+    title: str | None = typer.Option(
         None, "--title", "-t", help="Notification title"
     ),
     level: str = typer.Option(
@@ -950,10 +949,10 @@ def send_notification(
     source: str = typer.Option(
         "cli", "--source", "-s", help="Notification source"
     ),
-    template: Optional[str] = typer.Option(
+    template: str | None = typer.Option(
         None, "--template", help="Use template for formatting"
     ),
-    config_file: Optional[Path] = typer.Option(
+    config_file: Path | None = typer.Option(
         None, "--config", "-c", help="Path to configuration file"
     )
 ):
@@ -1029,7 +1028,7 @@ def send_notification(
 
 @app.command("test-notifications")
 def test_notification_providers(
-    config_file: Optional[Path] = typer.Option(
+    config_file: Path | None = typer.Option(
         None, "--config", "-c", help="Path to configuration file"
     )
 ):
@@ -1084,7 +1083,7 @@ def test_notification_providers(
 
 @app.command("notification-status")  
 def show_notification_status(
-    config_file: Optional[Path] = typer.Option(
+    config_file: Path | None = typer.Option(
         None, "--config", "-c", help="Path to configuration file"
     )
 ):

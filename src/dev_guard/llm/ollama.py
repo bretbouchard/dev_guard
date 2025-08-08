@@ -1,15 +1,19 @@
 """Ollama local LLM client for DevGuard."""
 
-import asyncio
-import time
-from typing import Dict, List, Optional, Any
-import aiohttp
 import logging
+import time
+from typing import Any
+
+import aiohttp
 
 from .provider import (
-    LLMProvider, LLMMessage, LLMResponse, LLMUsage,
-    LLMProviderError, LLMProviderNotAvailableError,
-    LLMProviderTimeoutError
+    LLMMessage,
+    LLMProvider,
+    LLMProviderError,
+    LLMProviderNotAvailableError,
+    LLMProviderTimeoutError,
+    LLMResponse,
+    LLMUsage,
 )
 
 logger = logging.getLogger(__name__)
@@ -18,7 +22,7 @@ logger = logging.getLogger(__name__)
 class OllamaClient(LLMProvider):
     """Ollama local LLM client."""
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config)
         self.base_url = config.get("base_url", "http://localhost:11434")
         # Default to a common free model if none specified
@@ -43,8 +47,8 @@ class OllamaClient(LLMProvider):
             return False
     
     def _messages_to_ollama_format(
-        self, messages: List[LLMMessage]
-    ) -> List[Dict[str, Any]]:
+        self, messages: list[LLMMessage]
+    ) -> list[dict[str, Any]]:
         """Convert LLMMessage objects to Ollama API format."""
         return [
             {
@@ -56,10 +60,10 @@ class OllamaClient(LLMProvider):
     
     async def chat_completion(
         self,
-        messages: List[LLMMessage],
-        model: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
+        messages: list[LLMMessage],
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
         **kwargs: Any
     ) -> LLMResponse:
         """Generate a chat completion using Ollama."""
@@ -137,7 +141,7 @@ class OllamaClient(LLMProvider):
                         }
                     )
                     
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise LLMProviderTimeoutError(
                 f"Ollama request timed out after {self.timeout}s"
             )
@@ -150,7 +154,7 @@ class OllamaClient(LLMProvider):
                 raise
             raise LLMProviderError(f"Unexpected Ollama error: {e}")
     
-    async def get_available_models(self) -> List[Dict[str, Any]]:
+    async def get_available_models(self) -> list[dict[str, Any]]:
         """Get list of available models from Ollama."""
         try:
             async with aiohttp.ClientSession() as session:

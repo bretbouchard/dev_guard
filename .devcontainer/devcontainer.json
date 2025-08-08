@@ -1,0 +1,30 @@
+{
+  "name": "DevGuard",
+  "image": "mcr.microsoft.com/vscode/devcontainers/python:3.11",
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {},
+    "ghcr.io/devcontainers-contrib/features/uv-asdf:2": {}
+  },
+  "containerEnv": {
+    "PYTHONUNBUFFERED": "1"
+  },
+  "postCreateCommand": "uv venv --python python3 && uv pip sync requirements.uv && uv run pre-commit install",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.defaultInterpreterPath": "/workspaces/${containerWorkspaceFolderBasename}/.venv/bin/python",
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestArgs": ["tests"],
+        "editor.formatOnSave": true
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff",
+        "ms-toolsai.jupyter"
+      ]
+    }
+  },
+  "remoteUser": "vscode"
+}
+

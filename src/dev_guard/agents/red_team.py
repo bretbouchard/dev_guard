@@ -1,16 +1,14 @@
 """Red Team Agent for security vulnerability scanning and penetration testing."""
 
-import asyncio
 import hashlib
 import json
 import logging
 import subprocess
-import tempfile
-from dataclasses import dataclass, asdict
-from datetime import datetime, timezone
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any
 
 from .base_agent import BaseAgent
 
@@ -66,15 +64,15 @@ class SecurityFinding:
     vulnerability_type: VulnerabilityType
     severity: SeverityLevel
     test_type: TestType
-    file_path: Optional[str] = None
-    line_number: Optional[int] = None
-    confidence: Optional[str] = None
-    cwe_id: Optional[str] = None
-    owasp_category: Optional[str] = None
-    remediation: Optional[str] = None
-    references: Optional[List[str]] = None
-    evidence: Optional[Dict[str, Any]] = None
-    discovered_at: Optional[datetime] = None
+    file_path: str | None = None
+    line_number: int | None = None
+    confidence: str | None = None
+    cwe_id: str | None = None
+    owasp_category: str | None = None
+    remediation: str | None = None
+    references: list[str] | None = None
+    evidence: dict[str, Any] | None = None
+    discovered_at: datetime | None = None
 
 
 @dataclass
@@ -83,13 +81,13 @@ class SecurityReport:
     scan_id: str
     repository_path: str
     scan_timestamp: datetime
-    test_types: List[TestType]
-    findings: List[SecurityFinding]
-    scan_statistics: Dict[str, Any]
+    test_types: list[TestType]
+    findings: list[SecurityFinding]
+    scan_statistics: dict[str, Any]
     risk_score: float
     compliance_status: str
-    recommendations: List[str]
-    tools_used: List[str]
+    recommendations: list[str]
+    tools_used: list[str]
     scan_duration: float
 
 
@@ -109,7 +107,7 @@ class RedTeamAgent(BaseAgent):
         # CWE mappings
         self.cwe_mappings = self._initialize_cwe_mappings()
     
-    def _detect_security_tools(self) -> Dict[str, bool]:
+    def _detect_security_tools(self) -> dict[str, bool]:
         """Detect available security scanning tools."""
         tools = {}
         
@@ -141,7 +139,7 @@ class RedTeamAgent(BaseAgent):
         self.logger.info(f"Available security tools: {[t for t, available in tools.items() if available]}")
         return tools
     
-    def _initialize_owasp_patterns(self) -> Dict[str, List[Dict[str, Any]]]:
+    def _initialize_owasp_patterns(self) -> dict[str, list[dict[str, Any]]]:
         """Initialize OWASP Top 10 vulnerability patterns."""
         return {
             "A01_Broken_Access_Control": [
@@ -196,7 +194,7 @@ class RedTeamAgent(BaseAgent):
             ]
         }
     
-    def _initialize_cwe_mappings(self) -> Dict[str, str]:
+    def _initialize_cwe_mappings(self) -> dict[str, str]:
         """Initialize CWE (Common Weakness Enumeration) mappings."""
         return {
             "sql_injection": "CWE-89",
@@ -218,7 +216,7 @@ class RedTeamAgent(BaseAgent):
         
         return await self.execute_task(task)
     
-    async def execute_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_task(self, task: dict[str, Any]) -> dict[str, Any]:
         """Execute red team security task."""
         try:
             task_type = task.get("type", "security_scan")
@@ -243,7 +241,7 @@ class RedTeamAgent(BaseAgent):
             self.logger.error(f"Error executing red team task: {e}")
             return {"success": False, "error": str(e)}
     
-    async def _perform_security_scan(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _perform_security_scan(self, task: dict[str, Any]) -> dict[str, Any]:
         """Perform comprehensive security vulnerability scanning."""
         try:
             repository_path = task.get("repository_path")
@@ -341,7 +339,7 @@ class RedTeamAgent(BaseAgent):
             self.logger.error(f"Error in security scan: {e}")
             return {"success": False, "error": str(e)}
     
-    async def _perform_sast_scan(self, repo_path: Path, target_files: List[str]) -> tuple[List[SecurityFinding], List[str]]:
+    async def _perform_sast_scan(self, repo_path: Path, target_files: list[str]) -> tuple[list[SecurityFinding], list[str]]:
         """Perform Static Application Security Testing (SAST)."""
         findings = []
         tools_used = []
@@ -371,7 +369,7 @@ class RedTeamAgent(BaseAgent):
         
         return findings, tools_used
     
-    async def _scan_security_patterns(self, repo_path: Path, target_files: List[str]) -> List[SecurityFinding]:
+    async def _scan_security_patterns(self, repo_path: Path, target_files: list[str]) -> list[SecurityFinding]:
         """Scan for security patterns using OWASP Top 10 rules."""
         findings = []
         
@@ -391,7 +389,7 @@ class RedTeamAgent(BaseAgent):
             
             for file_path in files_to_scan:
                 try:
-                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    with open(file_path, encoding='utf-8', errors='ignore') as f:
                         content = f.read()
                     
                     # Check OWASP patterns
@@ -415,7 +413,7 @@ class RedTeamAgent(BaseAgent):
                                     confidence="medium",
                                     owasp_category=category,
                                     evidence={"matched_text": match.group()},
-                                    discovered_at=datetime.now(timezone.utc)
+                                    discovered_at=datetime.now(UTC)
                                 )
                                 findings.append(finding)
                 
@@ -428,7 +426,7 @@ class RedTeamAgent(BaseAgent):
         
         return findings
     
-    async def _run_bandit_scan(self, repo_path: Path) -> List[SecurityFinding]:
+    async def _run_bandit_scan(self, repo_path: Path) -> list[SecurityFinding]:
         """Run Bandit security scan for Python code."""
         findings = []
         
@@ -453,7 +451,7 @@ class RedTeamAgent(BaseAgent):
                         confidence=issue.get("issue_confidence", "").lower(),
                         cwe_id=issue.get("test_id"),
                         evidence={"code": issue.get("code", "")},
-                        discovered_at=datetime.now(timezone.utc)
+                        discovered_at=datetime.now(UTC)
                     )
                     findings.append(finding)
         
@@ -462,7 +460,7 @@ class RedTeamAgent(BaseAgent):
         
         return findings
     
-    async def _perform_sca_scan(self, repo_path: Path) -> tuple[List[SecurityFinding], List[str]]:
+    async def _perform_sca_scan(self, repo_path: Path) -> tuple[list[SecurityFinding], list[str]]:
         """Perform Software Composition Analysis (SCA)."""
         findings = []
         tools_used = []
@@ -481,7 +479,7 @@ class RedTeamAgent(BaseAgent):
         
         return findings, tools_used
     
-    async def _scan_for_secrets(self, repo_path: Path) -> List[SecurityFinding]:
+    async def _scan_for_secrets(self, repo_path: Path) -> list[SecurityFinding]:
         """Scan for hardcoded secrets and credentials."""
         findings = []
         
@@ -510,7 +508,7 @@ class RedTeamAgent(BaseAgent):
                     continue
                 
                 try:
-                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    with open(file_path, encoding='utf-8', errors='ignore') as f:
                         content = f.read()
                     
                     for pattern, secret_type in secret_patterns:
@@ -533,7 +531,7 @@ class RedTeamAgent(BaseAgent):
                                 cwe_id="CWE-798",
                                 owasp_category="A04_Insecure_Design",
                                 remediation=f"Remove hardcoded {secret_type.lower()} and use environment variables or secure storage",
-                                discovered_at=datetime.now(timezone.utc)
+                                discovered_at=datetime.now(UTC)
                             )
                             findings.append(finding)
                 
@@ -546,7 +544,7 @@ class RedTeamAgent(BaseAgent):
         
         return findings
     
-    async def _scan_infrastructure(self, repo_path: Path) -> tuple[List[SecurityFinding], List[str]]:
+    async def _scan_infrastructure(self, repo_path: Path) -> tuple[list[SecurityFinding], list[str]]:
         """Scan infrastructure configurations for security issues."""
         findings = []
         tools_used = []
@@ -563,7 +561,7 @@ class RedTeamAgent(BaseAgent):
         
         return findings, tools_used
     
-    async def _scan_docker_security(self, repo_path: Path) -> List[SecurityFinding]:
+    async def _scan_docker_security(self, repo_path: Path) -> list[SecurityFinding]:
         """Scan Docker configurations for security issues."""
         findings = []
         
@@ -572,7 +570,7 @@ class RedTeamAgent(BaseAgent):
         
         for dockerfile in dockerfiles:
             try:
-                with open(dockerfile, 'r', encoding='utf-8') as f:
+                with open(dockerfile, encoding='utf-8') as f:
                     content = f.read()
                 
                 lines = content.split('\n')
@@ -592,7 +590,7 @@ class RedTeamAgent(BaseAgent):
                             line_number=i,
                             confidence="high",
                             remediation="Use specific version tags instead of 'latest'",
-                            discovered_at=datetime.now(timezone.utc)
+                            discovered_at=datetime.now(UTC)
                         )
                         findings.append(finding)
                     
@@ -608,7 +606,7 @@ class RedTeamAgent(BaseAgent):
                             line_number=i,
                             confidence="high",
                             remediation="Create and use a non-root user",
-                            discovered_at=datetime.now(timezone.utc)
+                            discovered_at=datetime.now(UTC)
                         )
                         findings.append(finding)
             
@@ -617,7 +615,7 @@ class RedTeamAgent(BaseAgent):
         
         return findings
     
-    async def _scan_kubernetes_security(self, repo_path: Path) -> List[SecurityFinding]:
+    async def _scan_kubernetes_security(self, repo_path: Path) -> list[SecurityFinding]:
         """Scan Kubernetes configurations for security issues."""
         findings = []
         
@@ -626,7 +624,7 @@ class RedTeamAgent(BaseAgent):
         
         for k8s_file in k8s_files:
             try:
-                with open(k8s_file, 'r', encoding='utf-8') as f:
+                with open(k8s_file, encoding='utf-8') as f:
                     content = f.read()
                 
                 # Check for privileged containers
@@ -641,7 +639,7 @@ class RedTeamAgent(BaseAgent):
                         file_path=str(k8s_file.relative_to(repo_path)),
                         confidence="high",
                         remediation="Remove privileged access unless absolutely necessary",
-                        discovered_at=datetime.now(timezone.utc)
+                        discovered_at=datetime.now(UTC)
                     )
                     findings.append(finding)
             
@@ -650,7 +648,7 @@ class RedTeamAgent(BaseAgent):
         
         return findings
     
-    async def _vulnerability_assessment(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _vulnerability_assessment(self, task: dict[str, Any]) -> dict[str, Any]:
         """Perform comprehensive vulnerability assessment."""
         # Placeholder for vulnerability assessment
         return {
@@ -660,7 +658,7 @@ class RedTeamAgent(BaseAgent):
             "risk_rating": "medium"
         }
     
-    async def _penetration_test(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _penetration_test(self, task: dict[str, Any]) -> dict[str, Any]:
         """Perform penetration testing."""
         # Placeholder for penetration testing
         return {
@@ -670,7 +668,7 @@ class RedTeamAgent(BaseAgent):
             "recommendations": []
         }
     
-    async def _compliance_check(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _compliance_check(self, task: dict[str, Any]) -> dict[str, Any]:
         """Check security compliance against standards."""
         # Placeholder for compliance checking
         return {
@@ -680,7 +678,7 @@ class RedTeamAgent(BaseAgent):
             "violations": []
         }
     
-    async def _threat_modeling(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _threat_modeling(self, task: dict[str, Any]) -> dict[str, Any]:
         """Perform threat modeling analysis."""
         # Placeholder for threat modeling
         return {
@@ -690,7 +688,7 @@ class RedTeamAgent(BaseAgent):
             "mitigations": []
         }
     
-    def _calculate_risk_score(self, findings: List[SecurityFinding]) -> float:
+    def _calculate_risk_score(self, findings: list[SecurityFinding]) -> float:
         """Calculate overall risk score based on findings."""
         if not findings:
             return 0.0
@@ -708,7 +706,7 @@ class RedTeamAgent(BaseAgent):
         
         return min(100.0, (total_score / max_possible) * 100) if max_possible > 0 else 0.0
     
-    def _generate_scan_statistics(self, findings: List[SecurityFinding]) -> Dict[str, Any]:
+    def _generate_scan_statistics(self, findings: list[SecurityFinding]) -> dict[str, Any]:
         """Generate scan statistics from findings."""
         stats = {
             "total_findings": len(findings),
@@ -733,7 +731,7 @@ class RedTeamAgent(BaseAgent):
         
         return stats
     
-    def _assess_compliance(self, findings: List[SecurityFinding]) -> str:
+    def _assess_compliance(self, findings: list[SecurityFinding]) -> str:
         """Assess compliance status based on findings."""
         critical_count = sum(1 for f in findings if f.severity == SeverityLevel.CRITICAL)
         high_count = sum(1 for f in findings if f.severity == SeverityLevel.HIGH)
@@ -747,7 +745,7 @@ class RedTeamAgent(BaseAgent):
         else:
             return "compliant"
     
-    def _generate_recommendations(self, findings: List[SecurityFinding]) -> List[str]:
+    def _generate_recommendations(self, findings: list[SecurityFinding]) -> list[str]:
         """Generate security recommendations based on findings."""
         recommendations = []
         
@@ -824,31 +822,31 @@ class RedTeamAgent(BaseAgent):
         }
         return mapping.get(bandit_severity, SeverityLevel.LOW)
     
-    async def _run_safety_scan(self, repo_path: Path) -> List[SecurityFinding]:
+    async def _run_safety_scan(self, repo_path: Path) -> list[SecurityFinding]:
         """Run Safety scan for Python dependencies."""
         findings = []
         # Implementation would scan Python dependencies for known vulnerabilities
         return findings
     
-    async def _run_trivy_scan(self, repo_path: Path) -> List[SecurityFinding]:
+    async def _run_trivy_scan(self, repo_path: Path) -> list[SecurityFinding]:
         """Run Trivy security scan."""
         findings = []
         # Implementation would use Trivy for comprehensive vulnerability scanning
         return findings
     
-    async def _run_semgrep_scan(self, repo_path: Path) -> List[SecurityFinding]:
+    async def _run_semgrep_scan(self, repo_path: Path) -> list[SecurityFinding]:
         """Run Semgrep security analysis."""
         findings = []
         # Implementation would use Semgrep for multi-language security analysis
         return findings
     
-    async def _run_eslint_security_scan(self, repo_path: Path) -> List[SecurityFinding]:
+    async def _run_eslint_security_scan(self, repo_path: Path) -> list[SecurityFinding]:
         """Run ESLint security scan for JavaScript/TypeScript."""
         findings = []
         # Implementation would run ESLint with security rules
         return findings
     
-    def get_capabilities(self) -> List[str]:
+    def get_capabilities(self) -> list[str]:
         """Get red team agent capabilities."""
         return [
             "security_vulnerability_scanning",
@@ -863,7 +861,7 @@ class RedTeamAgent(BaseAgent):
             "owasp_top10_analysis"
         ]
     
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get agent status."""
         return {
             "agent_id": self.agent_id,
@@ -871,5 +869,5 @@ class RedTeamAgent(BaseAgent):
             "capabilities": len(self.get_capabilities()),
             "available_tools": sum(1 for available in self.available_tools.values() if available),
             "cached_scans": len(self.scan_cache),
-            "last_heartbeat": datetime.now(timezone.utc).isoformat()
+            "last_heartbeat": datetime.now(UTC).isoformat()
         }

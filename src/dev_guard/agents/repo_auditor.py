@@ -7,21 +7,21 @@ content ingestion, repository health checks, missing file detection, and
 knowledge base maintenance.
 """
 
-import logging
-import json
 import fnmatch
 import hashlib
-from datetime import datetime, timezone, timedelta
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
-from dataclasses import dataclass, asdict, field
+import json
+import logging
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime, timedelta
 from enum import Enum
+from pathlib import Path
+from typing import Any
 
-from .base_agent import BaseAgent
 from ..core.config import Config
-from ..memory.shared_memory import SharedMemory, AgentState
-from ..memory.vector_db import VectorDatabase
 from ..llm.provider import LLMProvider
+from ..memory.shared_memory import AgentState, SharedMemory
+from ..memory.vector_db import VectorDatabase
+from .base_agent import BaseAgent
 
 logger = logging.getLogger(__name__)
 
@@ -55,11 +55,11 @@ class AuditFinding:
     severity: AuditSeverity
     title: str
     description: str
-    file_path: Optional[str] = None
-    line_number: Optional[int] = None
-    recommendation: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
-    timestamp: datetime = datetime.now(timezone.utc)
+    file_path: str | None = None
+    line_number: int | None = None
+    recommendation: str | None = None
+    metadata: dict[str, Any] | None = None
+    timestamp: datetime = datetime.now(UTC)
 
     def __post_init__(self):
         if self.metadata is None:
@@ -73,10 +73,10 @@ class RepositoryAuditReport:
     audit_id: str
     audit_type: AuditType
     start_time: datetime
-    end_time: Optional[datetime] = None
-    findings: List[AuditFinding] = field(default_factory=list)
-    statistics: Dict[str, Any] = field(default_factory=dict)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    end_time: datetime | None = None
+    findings: list[AuditFinding] = field(default_factory=list)
+    statistics: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class RepoAuditorAgent(BaseAgent):
@@ -103,12 +103,12 @@ class RepoAuditorAgent(BaseAgent):
         **kwargs: Any
     ):
         super().__init__(agent_id, config, shared_memory, vector_db)
-        self.llm_provider: Optional[LLMProvider] = kwargs.get('llm_provider')
+        self.llm_provider: LLMProvider | None = kwargs.get('llm_provider')
         
         # Repository tracking and caching
-        self.repository_cache: Dict[str, Dict[str, Any]] = {}
-        self.file_checksums: Dict[str, str] = {}
-        self.last_scan_times: Dict[str, datetime] = {}
+        self.repository_cache: dict[str, dict[str, Any]] = {}
+        self.file_checksums: dict[str, str] = {}
+        self.last_scan_times: dict[str, datetime] = {}
         
         # Audit configuration
         self.supported_file_extensions = {
@@ -157,7 +157,7 @@ class RepoAuditorAgent(BaseAgent):
         
         return await self.execute_task(task)
 
-    async def execute_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_task(self, task: dict[str, Any]) -> dict[str, Any]:
         """Execute a repository audit task."""
         try:
             self._update_state("busy", task.get("task_id"))
@@ -195,8 +195,8 @@ class RepoAuditorAgent(BaseAgent):
             return {"success": False, "error": str(e)}
 
     async def _perform_full_repository_scan(
-        self, task: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, task: dict[str, Any]
+    ) -> dict[str, Any]:
         """Perform comprehensive repository scanning and analysis."""
         try:
             repository_path = task.get("repository_path")
@@ -214,7 +214,7 @@ class RepoAuditorAgent(BaseAgent):
                 repository_path=str(repo_path),
                 audit_id=audit_id,
                 audit_type=AuditType.FULL_SCAN,
-                start_time=datetime.now(timezone.utc)
+                start_time=datetime.now(UTC)
             )
             
             # Perform comprehensive scanning
@@ -225,7 +225,7 @@ class RepoAuditorAgent(BaseAgent):
             await self._extract_project_metadata(repo_path, report)
             
             # Finalize report
-            report.end_time = datetime.now(timezone.utc)
+            report.end_time = datetime.now(UTC)
             report.statistics.update({
                 "scan_duration_seconds": (report.end_time - report.start_time).total_seconds(),
                 "total_findings": len(report.findings),
@@ -263,7 +263,7 @@ class RepoAuditorAgent(BaseAgent):
             file_count = 0
             directory_count = 0
             total_size = 0
-            file_extensions: Dict[str, int] = {}
+            file_extensions: dict[str, int] = {}
             
             for item in repo_path.rglob("*"):
                 if self._should_ignore_path(str(item), self.ignore_patterns):
@@ -392,8 +392,8 @@ class RepoAuditorAgent(BaseAgent):
     async def _check_important_files(self, repo_path: Path, report: RepositoryAuditReport):
         """Check for presence of important files in repository."""
         try:
-            found_files: Set[str] = set()
-            missing_files: List[str] = []
+            found_files: set[str] = set()
+            missing_files: list[str] = []
             
             # Check for important files
             for important_file in self.important_files:
@@ -526,7 +526,7 @@ class RepoAuditorAgent(BaseAgent):
             elif (repo_path / "package.json").exists():
                 project_metadata["project_type"] = "nodejs"
                 try:
-                    with open(repo_path / "package.json", 'r') as f:
+                    with open(repo_path / "package.json") as f:
                         package_data = json.loads(f.read())
                         project_metadata["project_name"] = package_data.get("name")
                         project_metadata["project_version"] = package_data.get("version")
@@ -539,9 +539,7 @@ class RepoAuditorAgent(BaseAgent):
                 project_metadata["project_type"] = "rust"
             elif (repo_path / "go.mod").exists():
                 project_metadata["project_type"] = "go"
-            elif (repo_path / "pom.xml").exists():
-                project_metadata["project_type"] = "java"
-            elif (repo_path / "build.gradle").exists():
+            elif (repo_path / "pom.xml").exists() or (repo_path / "build.gradle").exists():
                 project_metadata["project_type"] = "java"
             else:
                 project_metadata["project_type"] = "unknown"
@@ -557,7 +555,7 @@ class RepoAuditorAgent(BaseAgent):
                 description=str(e)
             ))
 
-    async def _perform_incremental_scan(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _perform_incremental_scan(self, task: dict[str, Any]) -> dict[str, Any]:
         """Perform incremental repository scan for changed files only."""
         try:
             repository_path = task.get("repository_path")
@@ -578,7 +576,7 @@ class RepoAuditorAgent(BaseAgent):
                 repository_path=str(repo_path),
                 audit_id=audit_id,
                 audit_type=AuditType.INCREMENTAL_SCAN,
-                start_time=datetime.now(timezone.utc)
+                start_time=datetime.now(UTC)
             )
             
             # Track incremental scan statistics
@@ -609,7 +607,7 @@ class RepoAuditorAgent(BaseAgent):
                             'stat': file_path.stat(),
                             'hash': self._get_file_hash(file_path),
                             'modified_time': datetime.fromtimestamp(
-                                file_path.stat().st_mtime, tz=timezone.utc
+                                file_path.stat().st_mtime, tz=UTC
                             )
                         }
                         stats["total_files_checked"] += 1
@@ -682,7 +680,7 @@ class RepoAuditorAgent(BaseAgent):
                             audit_type=AuditType.INCREMENTAL_SCAN,
                             severity=AuditSeverity.INFO,
                             title="File deleted",
-                            description=f"File no longer exists in repository",
+                            description="File no longer exists in repository",
                             file_path=deleted_file_path,
                             recommendation="Vector database entries cleaned up"
                         ))
@@ -692,15 +690,15 @@ class RepoAuditorAgent(BaseAgent):
             # Update repository cache
             self.repository_cache[str(repo_path)] = {
                 'files': current_files,
-                'last_incremental_scan': datetime.now(timezone.utc).isoformat(),
+                'last_incremental_scan': datetime.now(UTC).isoformat(),
                 'scan_stats': stats
             }
             
             # Update last scan time
-            self.last_scan_times[str(repo_path)] = datetime.now(timezone.utc)
+            self.last_scan_times[str(repo_path)] = datetime.now(UTC)
             
             # Finalize report
-            report.end_time = datetime.now(timezone.utc)
+            report.end_time = datetime.now(UTC)
             report.statistics.update(stats)
             report.metadata.update({
                 "incremental_scan": True,
@@ -738,7 +736,7 @@ class RepoAuditorAgent(BaseAgent):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _ingest_repository_files(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _ingest_repository_files(self, task: dict[str, Any]) -> dict[str, Any]:
         """Ingest repository files into vector database."""
         try:
             repository_path = task.get("repository_path")
@@ -750,7 +748,7 @@ class RepoAuditorAgent(BaseAgent):
                 return {"success": False, "error": f"Repository path does not exist: {repository_path}"}
             
             # Use vector database to ingest files
-            ingested_files: List[str] = []
+            ingested_files: list[str] = []
             for file_path in repo_path.rglob("*"):
                 if (file_path.is_file() and 
                     not self._should_ignore_path(str(file_path), self.ignore_patterns) and
@@ -773,7 +771,7 @@ class RepoAuditorAgent(BaseAgent):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _check_missing_files(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _check_missing_files(self, task: dict[str, Any]) -> dict[str, Any]:
         """Check for missing important files in repository."""
         try:
             repository_path = task.get("repository_path")
@@ -784,7 +782,7 @@ class RepoAuditorAgent(BaseAgent):
             if not repo_path.exists():
                 return {"success": False, "error": f"Repository path does not exist: {repository_path}"}
             
-            missing_files: List[str] = []
+            missing_files: list[str] = []
             for important_file in self.important_files:
                 file_path = repo_path / important_file
                 if not file_path.exists():
@@ -799,7 +797,7 @@ class RepoAuditorAgent(BaseAgent):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _cleanup_vector_database(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _cleanup_vector_database(self, task: dict[str, Any]) -> dict[str, Any]:
         """Clean up stale entries from vector database."""
         try:
             repository_path = task.get("repository_path")
@@ -817,7 +815,7 @@ class RepoAuditorAgent(BaseAgent):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _perform_health_check(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _perform_health_check(self, task: dict[str, Any]) -> dict[str, Any]:
         """Perform repository health check."""
         try:
             repository_path = task.get("repository_path")
@@ -830,7 +828,7 @@ class RepoAuditorAgent(BaseAgent):
             
             # Basic health check implementation
             health_score = 100  # Start with perfect score
-            issues: List[str] = []
+            issues: list[str] = []
             
             # Check for README
             if not any((repo_path / name).exists() for name in ['README.md', 'README.txt', 'README.rst']):
@@ -857,7 +855,7 @@ class RepoAuditorAgent(BaseAgent):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _extract_repository_metadata(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _extract_repository_metadata(self, task: dict[str, Any]) -> dict[str, Any]:
         """Extract comprehensive repository metadata."""
         try:
             repository_path = task.get("repository_path")
@@ -868,7 +866,7 @@ class RepoAuditorAgent(BaseAgent):
             if not repo_path.exists():
                 return {"success": False, "error": f"Repository path does not exist: {repository_path}"}
             
-            metadata: Dict[str, Any] = {}
+            metadata: dict[str, Any] = {}
             
             # Extract project type and build system information
             if (repo_path / "pyproject.toml").exists():
@@ -880,7 +878,7 @@ class RepoAuditorAgent(BaseAgent):
             elif (repo_path / "package.json").exists():
                 metadata["project_type"] = "nodejs"
                 try:
-                    with open(repo_path / "package.json", 'r') as f:
+                    with open(repo_path / "package.json") as f:
                         package_data = json.loads(f.read())
                         metadata.update({
                             "project_name": package_data.get("name"),
@@ -891,7 +889,7 @@ class RepoAuditorAgent(BaseAgent):
                     pass
             
             # Count files by type
-            file_counts: Dict[str, int] = {}
+            file_counts: dict[str, int] = {}
             for file_path in repo_path.rglob("*"):
                 if file_path.is_file():
                     ext = file_path.suffix.lower()
@@ -908,7 +906,7 @@ class RepoAuditorAgent(BaseAgent):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _analyze_repository_dependencies(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _analyze_repository_dependencies(self, task: dict[str, Any]) -> dict[str, Any]:
         """Analyze repository dependencies."""
         try:
             repository_path = task.get("repository_path")
@@ -919,12 +917,12 @@ class RepoAuditorAgent(BaseAgent):
             if not repo_path.exists():
                 return {"success": False, "error": f"Repository path does not exist: {repository_path}"}
             
-            dependencies: Dict[str, Any] = {}
+            dependencies: dict[str, Any] = {}
             
             # Python dependencies
             if (repo_path / "requirements.txt").exists():
                 try:
-                    with open(repo_path / "requirements.txt", 'r') as f:
+                    with open(repo_path / "requirements.txt") as f:
                         dependencies["python"] = [line.strip() for line in f if line.strip() and not line.startswith('#')]
                 except Exception:
                     pass
@@ -932,7 +930,7 @@ class RepoAuditorAgent(BaseAgent):
             # Node.js dependencies
             if (repo_path / "package.json").exists():
                 try:
-                    with open(repo_path / "package.json", 'r') as f:
+                    with open(repo_path / "package.json") as f:
                         package_data = json.loads(f.read())
                         dependencies["nodejs"] = {
                             "dependencies": package_data.get("dependencies", {}),
@@ -950,7 +948,7 @@ class RepoAuditorAgent(BaseAgent):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def _should_ignore_path(self, path: str, ignore_patterns: List[str]) -> bool:
+    def _should_ignore_path(self, path: str, ignore_patterns: list[str]) -> bool:
         """Check if a path should be ignored based on patterns."""
         for pattern in ignore_patterns:
             if fnmatch.fnmatch(path, pattern) or fnmatch.fnmatch(Path(path).name, pattern):
@@ -1026,7 +1024,7 @@ class RepoAuditorAgent(BaseAgent):
         
         return ". ".join(summary_parts)
 
-    def _get_file_hash(self, file_path: Path) -> Optional[str]:
+    def _get_file_hash(self, file_path: Path) -> str | None:
         """Calculate SHA256 hash of file content."""
         try:
             with open(file_path, 'rb') as f:
@@ -1038,8 +1036,8 @@ class RepoAuditorAgent(BaseAgent):
 
     def _has_file_changed(
         self,
-        cached_info: Dict[str, Any],
-        current_info: Dict[str, Any]
+        cached_info: dict[str, Any],
+        current_info: dict[str, Any]
     ) -> bool:
         """Check if a file has changed since last scan."""
         try:
@@ -1134,7 +1132,7 @@ class RepoAuditorAgent(BaseAgent):
         except Exception as e:
             self.logger.debug(f"Error processing file {file_path}: {e}")
             
-    def _generate_incremental_summary(self, stats: Dict[str, Any]) -> str:
+    def _generate_incremental_summary(self, stats: dict[str, Any]) -> str:
         """Generate human-readable incremental scan summary."""
         summary_parts = [
             "Incremental scan completed",
@@ -1160,7 +1158,7 @@ class RepoAuditorAgent(BaseAgent):
         repo_path: Path, 
         max_age_days: int = 30,
         remove_stale: bool = True
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Perform comprehensive cleanup of repository audit data.
         
@@ -1186,7 +1184,7 @@ class RepoAuditorAgent(BaseAgent):
             self.logger.info(f"Starting comprehensive cleanup for {repo_path}")
             
             # Get current repository files for comparison
-            current_files: Set[str] = set()
+            current_files: set[str] = set()
             if repo_path.exists():
                 current_files = {
                     str(f.relative_to(repo_path))
@@ -1239,10 +1237,10 @@ class RepoAuditorAgent(BaseAgent):
     async def _cleanup_vector_database(
         self,
         repo_path: Path,
-        current_files: Set[str],
+        current_files: set[str],
         max_age_days: int,
         remove_stale: bool
-    ) -> Dict[str, int]:
+    ) -> dict[str, int]:
         """Clean up vector database entries for repository."""
         cleanup_stats = {
             'vector_db_entries_removed': 0,
@@ -1292,9 +1290,9 @@ class RepoAuditorAgent(BaseAgent):
     async def _cleanup_shared_memory(
         self,
         repo_path: Path,
-        current_files: Set[str],
+        current_files: set[str],
         max_age_days: int
-    ) -> Dict[str, int]:
+    ) -> dict[str, int]:
         """Clean up shared memory entries for repository."""
         cleanup_stats = {'memory_entries_cleared': 0}
         
@@ -1322,7 +1320,7 @@ class RepoAuditorAgent(BaseAgent):
         self,
         repo_path: Path,
         max_age_days: int
-    ) -> Dict[str, int]:
+    ) -> dict[str, int]:
         """Clean up repository cache entries."""
         cleanup_stats = {'cache_entries_cleared': 0}
         
@@ -1369,20 +1367,20 @@ class RepoAuditorAgent(BaseAgent):
     def _update_state(
         self,
         status: str,
-        task_id: Optional[str] = None,
-        error: Optional[str] = None
+        task_id: str | None = None,
+        error: str | None = None
     ) -> None:
         """Update agent state."""
         state = AgentState(
             agent_id=self.agent_id,
             status=status,
             current_task=task_id,
-            last_heartbeat=datetime.now(timezone.utc),
+            last_heartbeat=datetime.now(UTC),
             metadata={"error": error if error else None}
         )
         self.shared_memory.update_agent_state(state)
 
-    def get_capabilities(self) -> List[str]:
+    def get_capabilities(self) -> list[str]:
         return [
             "repository_scanning",
             "file_ingestion",
@@ -1398,7 +1396,7 @@ class RepoAuditorAgent(BaseAgent):
             "repository_maintenance"
         ]
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "agent_id": self.agent_id,
             "type": "repo_auditor",

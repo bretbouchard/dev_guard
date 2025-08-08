@@ -3,14 +3,12 @@
 import asyncio
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Union
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from ..core.config import Config
-from ..memory.shared_memory import (
-    SharedMemory, MemoryEntry, TaskStatus, AgentState
-)
+from ..memory.shared_memory import AgentState, MemoryEntry, SharedMemory, TaskStatus
 from ..memory.vector_db import VectorDatabase
 
 logger = logging.getLogger(__name__)
@@ -42,7 +40,7 @@ class BaseAgent(ABC):
             agent_id=self.agent_id,
             status="idle",
             current_task=None,
-            last_heartbeat=datetime.now(timezone.utc),
+            last_heartbeat=datetime.now(UTC),
             metadata={"initialized": True}
         )
         self.shared_memory.update_agent_state(initial_state)
@@ -65,7 +63,7 @@ class BaseAgent(ABC):
                     self.execute(state),
                     timeout=self.agent_config.timeout
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 error_msg = (
                     f"Agent {self.agent_id} timed out after "
                     f"{self.agent_config.timeout}s"
@@ -103,7 +101,7 @@ class BaseAgent(ABC):
         self,
         error_msg: str,
         state: Any,
-        exception: Optional[Exception] = None
+        exception: Exception | None = None
     ) -> None:
         """Log error to shared memory."""
         error_entry = MemoryEntry(
@@ -124,8 +122,8 @@ class BaseAgent(ABC):
     def log_observation(
         self,
         observation: str,
-        data: Optional[Dict[str, Any]] = None,
-        tags: Optional[List[str]] = None
+        data: dict[str, Any] | None = None,
+        tags: list[str] | None = None
     ) -> str:
         """Log an observation to shared memory."""
         entry = MemoryEntry(
@@ -146,8 +144,8 @@ class BaseAgent(ABC):
         self,
         decision: str,
         reasoning: str,
-        data: Optional[Dict[str, Any]] = None,
-        tags: Optional[List[str]] = None
+        data: dict[str, Any] | None = None,
+        tags: list[str] | None = None
     ) -> str:
         """Log a decision to shared memory."""
         entry = MemoryEntry(
@@ -168,9 +166,9 @@ class BaseAgent(ABC):
     def log_result(
         self,
         result: str,
-        data: Optional[Dict[str, Any]] = None,
-        tags: Optional[List[str]] = None,
-        parent_id: Optional[str] = None
+        data: dict[str, Any] | None = None,
+        tags: list[str] | None = None,
+        parent_id: str | None = None
     ) -> str:
         """Log a result to shared memory."""
         entry = MemoryEntry(
@@ -190,10 +188,10 @@ class BaseAgent(ABC):
     
     def get_recent_memories(
         self,
-        memory_type: Optional[str] = None,
+        memory_type: str | None = None,
         limit: int = 50,
         include_other_agents: bool = False
-    ) -> List[MemoryEntry]:
+    ) -> list[MemoryEntry]:
         """Get recent memories, optionally filtered by type."""
         agent_id = None if include_other_agents else self.agent_id
         return self.shared_memory.get_memories(
@@ -206,59 +204,59 @@ class BaseAgent(ABC):
         self,
         query: str,
         n_results: int = 10,
-        filters: Optional[Dict[str, Any]] = None
-    ) -> List[Dict[str, Any]]:
+        filters: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
         """Search the vector database for relevant knowledge."""
         return self.vector_db.search(query, n_results=n_results, where=filters)
     
-    def update_heartbeat(self, metadata: Optional[Dict[str, Any]] = None) -> None:
+    def update_heartbeat(self, metadata: dict[str, Any] | None = None) -> None:
         """Update agent heartbeat in shared memory."""
         current_state = self.shared_memory.get_agent_state(self.agent_id)
         if current_state:
-            current_state.last_heartbeat = datetime.now(timezone.utc)
+            current_state.last_heartbeat = datetime.now(UTC)
             if metadata:
                 current_state.metadata.update(metadata)
             self.shared_memory.update_agent_state(current_state)
     
-    def set_status(self, status: str, current_task: Optional[str] = None) -> None:
+    def set_status(self, status: str, current_task: str | None = None) -> None:
         """Update agent status in shared memory."""
         agent_state = AgentState(
             agent_id=self.agent_id,
             status=status,
             current_task=current_task,
-            last_heartbeat=datetime.now(timezone.utc)
+            last_heartbeat=datetime.now(UTC)
         )
         self.shared_memory.update_agent_state(agent_state)
         self.logger.debug(f"Status updated to: {status}")
     
-    def get_agent_state(self) -> Optional[AgentState]:
+    def get_agent_state(self) -> AgentState | None:
         """Get the current state of this agent."""
         return self.shared_memory.get_agent_state(self.agent_id)
     
-    def get_all_agent_states(self) -> List[AgentState]:
+    def get_all_agent_states(self) -> list[AgentState]:
         """Get the current state of all agents."""
         return self.shared_memory.get_all_agent_states()
     
-    def get_active_agents(self) -> List[AgentState]:
+    def get_active_agents(self) -> list[AgentState]:
         """Get all agents that are currently active (not idle or stopped)."""
         all_states = self.shared_memory.get_all_agent_states()
         return [state for state in all_states if state.status in ["busy", "error"]]
     
-    def get_available_agents(self) -> List[AgentState]:
+    def get_available_agents(self) -> list[AgentState]:
         """Get all agents that are available for task assignment."""
         all_states = self.shared_memory.get_all_agent_states()
         return [state for state in all_states if state.status == "idle"]
     
-    def update_agent_metadata(self, metadata: Dict[str, Any]) -> None:
+    def update_agent_metadata(self, metadata: dict[str, Any]) -> None:
         """Update agent metadata in shared memory."""
         current_state = self.shared_memory.get_agent_state(self.agent_id)
         if current_state:
             current_state.metadata.update(metadata)
-            current_state.last_heartbeat = datetime.now(timezone.utc)
+            current_state.last_heartbeat = datetime.now(UTC)
             self.shared_memory.update_agent_state(current_state)
             self.logger.debug(f"Updated metadata for agent {self.agent_id}")
     
-    def get_agent_capabilities(self) -> Dict[str, Any]:
+    def get_agent_capabilities(self) -> dict[str, Any]:
         """Get agent capabilities and configuration from metadata."""
         current_state = self.shared_memory.get_agent_state(self.agent_id)
         capabilities = {
@@ -280,7 +278,7 @@ class BaseAgent(ABC):
         
         return capabilities
     
-    def check_agent_health(self) -> Dict[str, Any]:
+    def check_agent_health(self) -> dict[str, Any]:
         """Check the health of this agent and return health status."""
         current_state = self.shared_memory.get_agent_state(self.agent_id)
         health_status = {
@@ -297,7 +295,7 @@ class BaseAgent(ABC):
             health_status["current_task"] = current_state.current_task
             
             # Calculate heartbeat age
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             heartbeat_age = (now - current_state.last_heartbeat).total_seconds()
             health_status["heartbeat_age_seconds"] = heartbeat_age
             
@@ -317,8 +315,8 @@ class BaseAgent(ABC):
         self,
         description: str,
         task_type: str,
-        target_agent: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        target_agent: str | None = None,
+        metadata: dict[str, Any] | None = None
     ) -> str:
         """Create a task for another agent or the swarm."""
         task = TaskStatus(
@@ -343,15 +341,15 @@ class BaseAgent(ABC):
         
         return task_id
     
-    def get_pending_tasks(self) -> List[TaskStatus]:
+    def get_pending_tasks(self) -> list[TaskStatus]:
         """Get pending tasks assigned to this agent."""
         return self.shared_memory.get_tasks(agent_id=self.agent_id, status="pending")
     
-    def get_all_tasks(self, status: Optional[str] = None, limit: int = 50) -> List[TaskStatus]:
+    def get_all_tasks(self, status: str | None = None, limit: int = 50) -> list[TaskStatus]:
         """Get all tasks for this agent, optionally filtered by status."""
         return self.shared_memory.get_tasks(agent_id=self.agent_id, status=status, limit=limit)
     
-    def get_task_by_id(self, task_id: str) -> Optional[TaskStatus]:
+    def get_task_by_id(self, task_id: str) -> TaskStatus | None:
         """Get a specific task by ID."""
         return self.shared_memory.get_task(task_id)
     
@@ -368,7 +366,7 @@ class BaseAgent(ABC):
             "metadata": {
                 **task.metadata,
                 "assigned_to": self.agent_id,
-                "assigned_at": datetime.now(timezone.utc).isoformat()
+                "assigned_at": datetime.now(UTC).isoformat()
             }
         }
         
@@ -384,7 +382,7 @@ class BaseAgent(ABC):
         
         return success
     
-    def complete_current_task(self, result: Optional[Dict[str, Any]] = None) -> bool:
+    def complete_current_task(self, result: dict[str, Any] | None = None) -> bool:
         """Complete the current task assigned to this agent."""
         current_state = self.shared_memory.get_agent_state(self.agent_id)
         if not current_state or not current_state.current_task:
@@ -405,7 +403,7 @@ class BaseAgent(ABC):
         
         return success
     
-    def fail_current_task(self, error: str, result: Optional[Dict[str, Any]] = None) -> bool:
+    def fail_current_task(self, error: str, result: dict[str, Any] | None = None) -> bool:
         """Mark the current task as failed."""
         current_state = self.shared_memory.get_agent_state(self.agent_id)
         if not current_state or not current_state.current_task:
@@ -430,8 +428,8 @@ class BaseAgent(ABC):
         self,
         task_id: str,
         status: str,
-        result: Optional[Dict[str, Any]] = None,
-        error: Optional[str] = None
+        result: dict[str, Any] | None = None,
+        error: str | None = None
     ) -> bool:
         """Update a task's status and result."""
         updates = {"status": status}
@@ -451,14 +449,14 @@ class BaseAgent(ABC):
         
         return success
     
-    def cancel_task(self, task_id: str, reason: Optional[str] = None) -> bool:
+    def cancel_task(self, task_id: str, reason: str | None = None) -> bool:
         """Cancel a task and update its status."""
         updates = {"status": "cancelled"}
         if reason:
             updates["metadata"] = {
                 "cancelled_by": self.agent_id,
                 "cancelled_reason": reason,
-                "cancelled_at": datetime.now(timezone.utc).isoformat()
+                "cancelled_at": datetime.now(UTC).isoformat()
             }
         
         success = self.shared_memory.update_task(task_id, **updates)
@@ -477,7 +475,7 @@ class BaseAgent(ABC):
         
         return success
     
-    def get_task_dependencies(self, task_id: str) -> List[TaskStatus]:
+    def get_task_dependencies(self, task_id: str) -> list[TaskStatus]:
         """Get all dependencies for a task."""
         task = self.shared_memory.get_task(task_id)
         if not task or not task.dependencies:
@@ -503,9 +501,9 @@ class BaseAgent(ABC):
         self,
         description: str,
         task_type: str,
-        depends_on: List[str],
-        target_agent: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        depends_on: list[str],
+        target_agent: str | None = None,
+        metadata: dict[str, Any] | None = None
     ) -> str:
         """Create a task that depends on other tasks."""
         # Validate that dependency tasks exist
@@ -538,11 +536,11 @@ class BaseAgent(ABC):
         
         return task_id
     
-    def get_tasks_by_status(self, status: str, limit: int = 50) -> List[TaskStatus]:
+    def get_tasks_by_status(self, status: str, limit: int = 50) -> list[TaskStatus]:
         """Get tasks for this agent filtered by status."""
         return self.shared_memory.get_tasks(agent_id=self.agent_id, status=status, limit=limit)
     
-    def get_task_history(self, limit: int = 100) -> List[TaskStatus]:
+    def get_task_history(self, limit: int = 100) -> list[TaskStatus]:
         """Get the task history for this agent, ordered by creation time."""
         all_tasks = self.shared_memory.get_tasks(agent_id=self.agent_id, limit=limit)
         # Filter out pending tasks and sort by creation time
@@ -552,8 +550,8 @@ class BaseAgent(ABC):
     def get_repository_files(
         self,
         repo_path: str,
-        file_extensions: Optional[List[str]] = None
-    ) -> List[Dict[str, Any]]:
+        file_extensions: list[str] | None = None
+    ) -> list[dict[str, Any]]:
         """Get files from a repository in the vector database."""
         # Use search_files with empty query to get all files, then filter by repository
         all_files = self.vector_db.search_files(
@@ -571,10 +569,10 @@ class BaseAgent(ABC):
     def search_code(
         self,
         query: str,
-        repo_path: Optional[str] = None,
-        file_extensions: Optional[List[str]] = None,
+        repo_path: str | None = None,
+        file_extensions: list[str] | None = None,
         n_results: int = 10
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Search for code in the vector database."""
         filters = {"content_type": "code"}
         if repo_path:
@@ -587,9 +585,9 @@ class BaseAgent(ABC):
     async def execute_command(
         self,
         command: str,
-        cwd: Optional[Union[str, Path]] = None,
+        cwd: str | Path | None = None,
         timeout: float = 300.0
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Execute a shell command and return the result."""
         self.logger.debug(f"Executing command: {command}")
         
@@ -609,7 +607,7 @@ class BaseAgent(ABC):
                 timeout=timeout
             )
             
-            result: Dict[str, Any] = {
+            result: dict[str, Any] = {
                 "command": command,
                 "return_code": process.returncode,
                 "stdout": stdout.decode('utf-8', errors='ignore').strip(),
@@ -625,7 +623,7 @@ class BaseAgent(ABC):
             
             return result
             
-        except asyncio.TimeoutError:
+        except TimeoutError:
             error_msg = f"Command timed out: {command}"
             self.logger.error(error_msg)
             raise
@@ -634,7 +632,7 @@ class BaseAgent(ABC):
             self.logger.error(error_msg)
             raise
     
-    def get_custom_instructions(self) -> Optional[str]:
+    def get_custom_instructions(self) -> str | None:
         """Get custom instructions for this agent from configuration."""
         return self.agent_config.custom_instructions
     

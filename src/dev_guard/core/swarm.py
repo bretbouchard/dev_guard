@@ -2,37 +2,38 @@
 
 import asyncio
 import logging
-from datetime import datetime, timezone
-from typing import Dict, List, Any, Optional, Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 try:
-    from langgraph.graph import StateGraph, START, END
     from langgraph.checkpoint.memory import MemorySaver
+    from langgraph.graph import END, START, StateGraph
     LANGGRAPH_AVAILABLE = True
 except ImportError:
     LANGGRAPH_AVAILABLE = False
 
 from pydantic import BaseModel, Field
 
-from ..core.config import Config
-from ..memory.shared_memory import SharedMemory, MemoryEntry, TaskStatus, AgentState
-from ..memory.vector_db import VectorDatabase
 from ..agents.base_agent import BaseAgent
+from ..core.config import Config
+from ..memory.shared_memory import AgentState, MemoryEntry, SharedMemory, TaskStatus
+from ..memory.vector_db import VectorDatabase
 
 logger = logging.getLogger(__name__)
 
 
 class SwarmState(BaseModel):
     """State shared across all agents in the swarm."""
-    current_task: Optional[str] = None
-    active_agents: List[str] = Field(default_factory=list)
-    pending_tasks: List[str] = Field(default_factory=list)
-    completed_tasks: List[str] = Field(default_factory=list)
-    failed_tasks: List[str] = Field(default_factory=list)
-    repositories: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
-    last_update: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    current_task: str | None = None
+    active_agents: list[str] = Field(default_factory=list)
+    pending_tasks: list[str] = Field(default_factory=list)
+    completed_tasks: list[str] = Field(default_factory=list)
+    failed_tasks: list[str] = Field(default_factory=list)
+    repositories: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    last_update: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class DevGuardSwarm:
@@ -52,7 +53,7 @@ class DevGuardSwarm:
         self.vector_db = VectorDatabase(config.vector_db)
         
         # Initialize agents
-        self.agents: Dict[str, BaseAgent] = {}
+        self.agents: dict[str, BaseAgent] = {}
         self._initialize_agents()
         
         # Initialize LangGraph
@@ -68,15 +69,15 @@ class DevGuardSwarm:
     
     def _initialize_agents(self) -> None:
         """Initialize all agents based on configuration."""
-        from ..agents.commander import CommanderAgent
-        from ..agents.planner import PlannerAgent
         from ..agents.code_agent import CodeAgent
-        from ..agents.qa_test import QATestAgent
+        from ..agents.commander import CommanderAgent
+        from ..agents.dep_manager import DepManagerAgent
         from ..agents.docs import DocsAgent
         from ..agents.git_watcher import GitWatcherAgent
         from ..agents.impact_mapper import ImpactMapperAgent
+        from ..agents.planner import PlannerAgent
+        from ..agents.qa_test import QATestAgent
         from ..agents.repo_auditor import RepoAuditorAgent
-        from ..agents.dep_manager import DepManagerAgent
         
         agent_classes = {
             "commander": CommanderAgent,
@@ -134,7 +135,7 @@ class DevGuardSwarm:
                     agent_id=agent.agent_id,
                     status="busy",
                     current_task=state.current_task,
-                    last_heartbeat=datetime.now(timezone.utc)
+                    last_heartbeat=datetime.now(UTC)
                 )
                 self.shared_memory.update_agent_state(agent_state)
                 
@@ -247,7 +248,7 @@ class DevGuardSwarm:
                 not any("git_watcher" in agent for agent in state.active_agents)):
                 
                 last_git_check = state.metadata.get("last_git_check", 0)
-                if datetime.now(timezone.utc).timestamp() - last_git_check > 300:  # 5 minutes
+                if datetime.now(UTC).timestamp() - last_git_check > 300:  # 5 minutes
                     return "git_watcher"
             
             # 2. Check if repositories need auditing (medium priority)
@@ -255,7 +256,7 @@ class DevGuardSwarm:
                 "repo_auditor" in available_agents):
                 
                 last_audit = state.metadata.get("last_audit", 0)
-                if datetime.now(timezone.utc).timestamp() - last_audit > 3600:  # 1 hour
+                if datetime.now(UTC).timestamp() - last_audit > 3600:  # 1 hour
                     return "repo_auditor"
             
             # 3. Check for dependency updates (low priority)
@@ -263,7 +264,7 @@ class DevGuardSwarm:
                 "dep_manager" in available_agents):
                 
                 last_dep_check = state.metadata.get("last_dependency_check", 0)
-                if datetime.now(timezone.utc).timestamp() - last_dep_check > 86400:  # 24 hours
+                if datetime.now(UTC).timestamp() - last_dep_check > 86400:  # 24 hours
                     return "dep_manager"
             
             # If no specific tasks, end cycle
@@ -322,13 +323,13 @@ class DevGuardSwarm:
             logger.error(f"Error in planner routing: {e}")
             return "commander"
     
-    def _get_next_priority_task(self, pending_tasks: List[str]) -> Optional[str]:
+    def _get_next_priority_task(self, pending_tasks: list[str]) -> str | None:
         """Get the highest priority task from pending list."""
         if not pending_tasks:
             return None
         
         # Get task details and sort by priority
-        task_priorities: List[tuple[str, int, datetime]] = []
+        task_priorities: list[tuple[str, int, datetime]] = []
         for task_id in pending_tasks:
             task = self.shared_memory.get_task(task_id)
             if task:
@@ -452,7 +453,7 @@ class DevGuardSwarm:
     
     def _find_fallback_agent(
         self, primary_agent: str, task: TaskStatus, state: SwarmState
-    ) -> Optional[str]:
+    ) -> str | None:
         """Find a fallback agent when primary agent is unavailable."""
         # Define fallback mappings
         fallback_map = {
@@ -526,11 +527,11 @@ class DevGuardSwarm:
                 initial_state = SwarmState(
                     repositories={repo.path: {"branch": repo.branch} 
                                 for repo in self.config.repositories},
-                    last_update=datetime.now(timezone.utc)
+                    last_update=datetime.now(UTC)
                 )
                 
                 # Execute the graph
-                thread_id = f"swarm_{datetime.now(timezone.utc).timestamp()}"
+                thread_id = f"swarm_{datetime.now(UTC).timestamp()}"
                 config = {"configurable": {"thread_id": thread_id}}
                 
                 async for state in self.compiled_graph.astream(
@@ -549,7 +550,7 @@ class DevGuardSwarm:
                         timeout=self.config.swarm_interval
                     )
                     break  # Shutdown requested
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     continue  # Normal cycle timeout
                     
             except Exception as e:
@@ -618,8 +619,8 @@ class DevGuardSwarm:
         self,
         description: str,
         task_type: str,
-        agent_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        agent_id: str | None = None,
+        metadata: dict[str, Any] | None = None
     ) -> str:
         """Create a new task for the swarm."""
         task = TaskStatus(
@@ -649,7 +650,7 @@ class DevGuardSwarm:
         logger.info(f"Created task {task_id}: {description}")
         return task_id
     
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get current swarm status."""
         agent_states = self.shared_memory.get_all_agent_states()
         recent_tasks = self.shared_memory.get_tasks(limit=10)
@@ -701,7 +702,7 @@ class DevGuardSwarm:
             content={
                 "action": "pause_agent",
                 "agent_id": agent_id,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(UTC).isoformat()
             },
             tags={"control", "pause"},
             parent_id=None
@@ -731,7 +732,7 @@ class DevGuardSwarm:
             content={
                 "action": "resume_agent",
                 "agent_id": agent_id,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(UTC).isoformat()
             },
             tags={"control", "resume"},
             parent_id=None
@@ -745,9 +746,9 @@ class DevGuardSwarm:
         self,
         description: str,
         task_type: str,
-        agent_id: Optional[str] = None,
+        agent_id: str | None = None,
         priority: str = "normal",
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: dict[str, Any] | None = None
     ) -> str:
         """Inject a high-priority task into the system."""
         task_metadata = metadata or {}
@@ -755,7 +756,7 @@ class DevGuardSwarm:
             "type": task_type,
             "priority": priority,
             "injected": True,
-            "injected_at": datetime.now(timezone.utc).isoformat()
+            "injected_at": datetime.now(UTC).isoformat()
         })
         
         task = TaskStatus(
@@ -778,7 +779,7 @@ class DevGuardSwarm:
                 "task_type": task_type,
                 "priority": priority,
                 "target_agent": agent_id,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(UTC).isoformat()
             },
             tags={"control", "inject", priority},
             parent_id=None
@@ -802,7 +803,7 @@ class DevGuardSwarm:
         # Update task status
         task.status = "cancelled"
         task.metadata = task.metadata or {}
-        task.metadata["cancelled_at"] = datetime.now(timezone.utc).isoformat()
+        task.metadata["cancelled_at"] = datetime.now(UTC).isoformat()
         
         self.shared_memory.update_task(task)
         
@@ -814,7 +815,7 @@ class DevGuardSwarm:
                 "action": "cancel_task",
                 "task_id": task_id,
                 "description": task.description,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(UTC).isoformat()
             },
             tags={"control", "cancel"},
             parent_id=None
@@ -824,7 +825,7 @@ class DevGuardSwarm:
         logger.info(f"Task {task_id} cancelled")
         return True
 
-    def get_task_details(self, task_id: str) -> Optional[Dict[str, Any]]:
+    def get_task_details(self, task_id: str) -> dict[str, Any] | None:
         """Get detailed information about a specific task."""
         task = self.shared_memory.get_task(task_id)
         if not task:
@@ -840,7 +841,7 @@ class DevGuardSwarm:
             "metadata": task.metadata
         }
 
-    def get_agent_details(self, agent_id: str) -> Optional[Dict[str, Any]]:
+    def get_agent_details(self, agent_id: str) -> dict[str, Any] | None:
         """Get detailed information about a specific agent."""
         if agent_id not in self.agents:
             return None
@@ -857,7 +858,7 @@ class DevGuardSwarm:
             "enabled": self.config.agents.get(agent_id, {}).get("enabled", False)
         }
 
-    def list_agents(self) -> List[Dict[str, Any]]:
+    def list_agents(self) -> list[dict[str, Any]]:
         """List all agents with their current status."""
         return [
             self.get_agent_details(agent_id) 
@@ -866,10 +867,10 @@ class DevGuardSwarm:
 
     def list_tasks(
         self, 
-        status: Optional[str] = None, 
-        agent_id: Optional[str] = None,
+        status: str | None = None, 
+        agent_id: str | None = None,
         limit: int = 20
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """List tasks with optional filtering."""
         tasks = self.shared_memory.get_tasks(limit=limit)
         

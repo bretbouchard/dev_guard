@@ -1,8 +1,8 @@
 """LLM integration package for DevGuard."""
 
-from .openrouter import OpenRouterClient
 from .ollama import OllamaClient
-from .provider import LLMProvider, LLMResponse, LLMMessage, LLMRole
+from .openrouter import OpenRouterClient
+from .provider import LLMMessage, LLMProvider, LLMResponse, LLMRole
 
 __all__ = [
     "OpenRouterClient",

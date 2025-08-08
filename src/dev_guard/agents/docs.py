@@ -1,23 +1,18 @@
 """Documentation agent for DevGuard - comprehensive documentation generation and maintenance."""
 
 import ast
-import asyncio
 import json
 import logging
 import os
 import re
 import subprocess
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
+from ..memory.shared_memory import AgentState
 from .base_agent import BaseAgent
-from ..core.config import Config
-from ..memory.shared_memory import SharedMemory, TaskStatus, AgentState
-from ..memory.vector_db import VectorDatabase
-from ..llm.provider import LLMProvider
 
 logger = logging.getLogger(__name__)
 
@@ -62,10 +57,10 @@ class CodeElement:
     type: str  # function, class, method, module
     file_path: str
     line_number: int
-    signature: Optional[str] = None
-    current_docstring: Optional[str] = None
-    complexity_score: Optional[float] = None
-    ast_node: Optional[str] = None
+    signature: str | None = None
+    current_docstring: str | None = None
+    complexity_score: float | None = None
+    ast_node: str | None = None
 
 
 @dataclass
@@ -78,11 +73,11 @@ class DocumentationTask:
     description: str
     status: DocumentationStatus
     priority: int = 1  # 1-5, 5 being highest
-    code_elements: Optional[List[CodeElement]] = None
-    metadata: Optional[Dict[str, Any]] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-    goose_session_id: Optional[str] = None
+    code_elements: list[CodeElement] | None = None
+    metadata: dict[str, Any] | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    goose_session_id: str | None = None
 
 
 @dataclass
@@ -97,11 +92,11 @@ class DocumentationReport:
     docstrings_updated: int
     documentation_coverage: float  # 0.0 to 1.0
     quality_score: float  # 0.0 to 1.0
-    issues_found: List[str]
-    recommendations: List[str]
+    issues_found: list[str]
+    recommendations: list[str]
     execution_time: float
-    generated_files: List[str]
-    updated_files: List[str]
+    generated_files: list[str]
+    updated_files: list[str]
     timestamp: datetime
 
 
@@ -122,8 +117,8 @@ class DocsAgent(BaseAgent):
         self.llm_provider = kwargs.get('llm_provider')
         
         # Documentation tracking
-        self.documentation_cache: Dict[str, DocumentationReport] = {}
-        self.code_analysis_cache: Dict[str, List[CodeElement]] = {}
+        self.documentation_cache: dict[str, DocumentationReport] = {}
+        self.code_analysis_cache: dict[str, list[CodeElement]] = {}
         
         # Supported file extensions for documentation
         self.code_extensions = {'.py', '.js', '.ts', '.java', '.cpp', '.c', '.go', '.rs', '.rb', '.php'}
@@ -132,7 +127,7 @@ class DocsAgent(BaseAgent):
         # Documentation templates
         self.doc_templates = self._load_documentation_templates()
         
-    def _load_documentation_templates(self) -> Dict[str, str]:
+    def _load_documentation_templates(self) -> dict[str, str]:
         """Load documentation templates for different types."""
         return {
             "function_docstring": '''"""
@@ -215,7 +210,7 @@ Usage:
             task = {"type": "generate_docs", "description": str(state)}
         
     
-    async def execute_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_task(self, task: dict[str, Any]) -> dict[str, Any]:
         """Execute a documentation task with comprehensive functionality."""
         try:
             self.logger.info(f"Docs agent executing task: {task.get('type', 'unknown')}")
@@ -261,7 +256,7 @@ Usage:
                 "task_type": task.get("type", "unknown")
             }
 
-    async def _generate_comprehensive_docs(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _generate_comprehensive_docs(self, task: dict[str, Any]) -> dict[str, Any]:
         """Generate comprehensive documentation for a codebase."""
         try:
             repository_path = task.get("repository_path", ".")
@@ -307,7 +302,7 @@ Usage:
                 execution_time=0.0,  # Would track actual execution time
                 generated_files=[f for r in results for f in r.get("generated_files", [])],
                 updated_files=[f for r in results for f in r.get("updated_files", [])],
-                timestamp=datetime.now(timezone.utc)
+                timestamp=datetime.now(UTC)
             )
             
             # Cache the report
@@ -323,7 +318,7 @@ Usage:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _update_docstrings(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _update_docstrings(self, task: dict[str, Any]) -> dict[str, Any]:
         """Update docstrings for code elements."""
         try:
             target_path = task.get("target_path", ".")
@@ -378,7 +373,7 @@ Usage:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _generate_docstring_for_element(self, element: CodeElement) -> Optional[str]:
+    async def _generate_docstring_for_element(self, element: CodeElement) -> str | None:
         """Generate a docstring for a code element using LLM."""
         try:
             if not self.llm_provider:
@@ -428,7 +423,7 @@ Return only the docstring content, properly formatted.
     async def _get_source_context(self, element: CodeElement) -> str:
         """Get source code context around a code element."""
         try:
-            with open(element.file_path, 'r', encoding='utf-8') as f:
+            with open(element.file_path, encoding='utf-8') as f:
                 lines = f.readlines()
             
             # Get context around the element (10 lines before and after)
@@ -442,7 +437,7 @@ Return only the docstring content, properly formatted.
             self.logger.warning(f"Failed to get source context for {element.name}: {e}")
             return ""
 
-    async def _analyze_code_for_documentation(self, path: str) -> List[CodeElement]:
+    async def _analyze_code_for_documentation(self, path: str) -> list[CodeElement]:
         """Analyze code to find elements that need documentation."""
         code_elements = []
         
@@ -474,12 +469,12 @@ Return only the docstring content, properly formatted.
         
         return code_elements
 
-    async def _analyze_python_file(self, file_path: str) -> List[CodeElement]:
+    async def _analyze_python_file(self, file_path: str) -> list[CodeElement]:
         """Analyze a Python file for documentation opportunities."""
         elements = []
         
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, encoding='utf-8') as f:
                 source = f.read()
             
             tree = ast.parse(source)
@@ -557,7 +552,7 @@ Return only the docstring content, properly formatted.
     async def _update_docstring_in_file(self, element: CodeElement, new_docstring: str) -> bool:
         """Update docstring in source file."""
         try:
-            with open(element.file_path, 'r', encoding='utf-8') as f:
+            with open(element.file_path, encoding='utf-8') as f:
                 lines = f.readlines()
             
             # Find the location to insert/update docstring
@@ -572,7 +567,7 @@ Return only the docstring content, properly formatted.
             self.logger.error(f"Failed to update docstring in {element.file_path}: {e}")
             return False
 
-    async def _update_readme(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _update_readme(self, task: dict[str, Any]) -> dict[str, Any]:
         """Update README file with current project information."""
         try:
             repository_path = task.get("repository_path", ".")
@@ -598,7 +593,7 @@ Return only the docstring content, properly formatted.
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _generate_readme(self, repository_path: str) -> Dict[str, Any]:
+    async def _generate_readme(self, repository_path: str) -> dict[str, Any]:
         """Generate a comprehensive README for the repository."""
         try:
             project_info = await self._analyze_project_structure(repository_path)
@@ -628,7 +623,7 @@ Return only the docstring content, properly formatted.
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _analyze_project_structure(self, repository_path: str) -> Dict[str, Any]:
+    async def _analyze_project_structure(self, repository_path: str) -> dict[str, Any]:
         """Analyze project structure to gather information for documentation."""
         project_info = {
             "name": os.path.basename(repository_path),
@@ -660,7 +655,7 @@ Return only the docstring content, properly formatted.
         
         return project_info
 
-    async def _parse_pyproject_toml(self, repository_path: str) -> Dict[str, Any]:
+    async def _parse_pyproject_toml(self, repository_path: str) -> dict[str, Any]:
         """Parse pyproject.toml for project metadata."""
         try:
             import tomllib  # Python 3.11+
@@ -685,11 +680,11 @@ Return only the docstring content, properly formatted.
             self.logger.warning(f"Failed to parse pyproject.toml: {e}")
             return {}
 
-    async def _parse_package_json(self, repository_path: str) -> Dict[str, Any]:
+    async def _parse_package_json(self, repository_path: str) -> dict[str, Any]:
         """Parse package.json for project metadata."""
         try:
             json_path = os.path.join(repository_path, "package.json")
-            with open(json_path, 'r', encoding='utf-8') as f:
+            with open(json_path, encoding='utf-8') as f:
                 data = json.load(f)
             
             return {
@@ -701,7 +696,7 @@ Return only the docstring content, properly formatted.
             self.logger.warning(f"Failed to parse package.json: {e}")
             return {}
 
-    async def _generate_readme_content(self, project_info: Dict[str, Any]) -> str:
+    async def _generate_readme_content(self, project_info: dict[str, Any]) -> str:
         """Generate README content from project information."""
         return self.doc_templates["readme_template"].format(
             project_name=project_info.get("name", "Project"),
@@ -714,14 +709,14 @@ Return only the docstring content, properly formatted.
             license="Licensed under MIT License"
         )
 
-    def _format_features_list(self, features: List[str]) -> str:
+    def _format_features_list(self, features: list[str]) -> str:
         """Format features list for README."""
         if not features:
             return "- Feature documentation coming soon"
         
         return "\n".join(f"- {feature}" for feature in features)
 
-    async def _create_api_docs(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _create_api_docs(self, task: dict[str, Any]) -> dict[str, Any]:
         """Create API documentation."""
         try:
             repository_path = task.get("repository_path", ".")
@@ -766,7 +761,7 @@ Return only the docstring content, properly formatted.
         module_path = rel_path.replace(os.sep, '.').replace('.py', '')
         return module_path
 
-    async def _generate_markdown_api_docs(self, modules: Dict[str, List[CodeElement]]) -> str:
+    async def _generate_markdown_api_docs(self, modules: dict[str, list[CodeElement]]) -> str:
         """Generate markdown API documentation."""
         content = ["# API Documentation\n"]
         
@@ -796,7 +791,7 @@ Return only the docstring content, properly formatted.
         
         return "\n".join(content)
 
-    async def _sync_docs_with_code(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _sync_docs_with_code(self, task: dict[str, Any]) -> dict[str, Any]:
         """Synchronize documentation with code changes."""
         try:
             repository_path = task.get("repository_path", ".")
@@ -831,7 +826,7 @@ Return only the docstring content, properly formatted.
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _check_documentation_freshness(self, file_path: str, elements: List[CodeElement]) -> bool:
+    async def _check_documentation_freshness(self, file_path: str, elements: list[CodeElement]) -> bool:
         """Check if documentation needs updating based on code changes."""
         # Simplified check - in practice, you'd compare timestamps, signatures, etc.
         for element in elements:
@@ -840,7 +835,7 @@ Return only the docstring content, properly formatted.
             
         return False
 
-    async def _analyze_documentation_coverage(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _analyze_documentation_coverage(self, task: dict[str, Any]) -> dict[str, Any]:
         """Analyze documentation coverage across the codebase."""
         try:
             repository_path = task.get("repository_path", ".")
@@ -934,7 +929,7 @@ Return only the docstring content, properly formatted.
         except Exception:
             return 0.0
 
-    async def _generate_changelog(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _generate_changelog(self, task: dict[str, Any]) -> dict[str, Any]:
         """Generate changelog from git history."""
         try:
             repository_path = task.get("repository_path", ".")
@@ -991,7 +986,7 @@ Return only the docstring content, properly formatted.
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def _format_changelog(self, entries: Dict[str, List[str]]) -> str:
+    def _format_changelog(self, entries: dict[str, list[str]]) -> str:
         """Format changelog entries."""
         content = ["# Changelog\n"]
         
@@ -1004,7 +999,7 @@ Return only the docstring content, properly formatted.
         
         return "\n".join(content)
 
-    async def _create_architecture_docs(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _create_architecture_docs(self, task: dict[str, Any]) -> dict[str, Any]:
         """Create architecture documentation."""
         try:
             repository_path = task.get("repository_path", ".")
@@ -1032,7 +1027,7 @@ Return only the docstring content, properly formatted.
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _analyze_architecture(self, repository_path: str) -> Dict[str, Any]:
+    async def _analyze_architecture(self, repository_path: str) -> dict[str, Any]:
         """Analyze project architecture."""
         structure = {
             "components": [],
@@ -1052,7 +1047,7 @@ Return only the docstring content, properly formatted.
         
         return structure
 
-    async def _generate_architecture_content(self, structure: Dict[str, Any]) -> str:
+    async def _generate_architecture_content(self, structure: dict[str, Any]) -> str:
         """Generate architecture documentation content."""
         content = [
             "# Architecture Documentation\n",
@@ -1073,7 +1068,7 @@ Return only the docstring content, properly formatted.
         
         return "\n".join(content)
 
-    async def _goose_generate_docs(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _goose_generate_docs(self, task: dict[str, Any]) -> dict[str, Any]:
         """Generate documentation using Goose CLI integration."""
         try:
             repository_path = task.get("repository_path", ".")
@@ -1111,7 +1106,7 @@ Return only the docstring content, properly formatted.
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _validate_documentation(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _validate_documentation(self, task: dict[str, Any]) -> dict[str, Any]:
         """Validate documentation quality and completeness."""
         try:
             repository_path = task.get("repository_path", ".")
@@ -1144,12 +1139,12 @@ Return only the docstring content, properly formatted.
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _validate_document_file(self, file_path: str) -> List[str]:
+    async def _validate_document_file(self, file_path: str) -> list[str]:
         """Validate a single documentation file."""
         issues = []
         
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, encoding='utf-8') as f:
                 content = f.read()
             
             # Check for common issues
@@ -1173,21 +1168,21 @@ Return only the docstring content, properly formatted.
         # In a real implementation, you'd make HTTP requests
         return True
 
-    async def _generate_missing_docstrings(self, repository_path: str) -> Dict[str, Any]:
+    async def _generate_missing_docstrings(self, repository_path: str) -> dict[str, Any]:
         """Generate missing docstrings for the repository."""
         return await self._update_docstrings({
             "target_path": repository_path,
             "force_update": False
         })
 
-    async def _generate_api_documentation(self, repository_path: str) -> Dict[str, Any]:
+    async def _generate_api_documentation(self, repository_path: str) -> dict[str, Any]:
         """Generate API documentation for the repository."""
         return await self._create_api_docs({
             "repository_path": repository_path,
             "format": "markdown"
         })
 
-    async def _generic_docs_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _generic_docs_task(self, task: dict[str, Any]) -> dict[str, Any]:
         """Handle generic documentation tasks."""
         try:
             return {
@@ -1198,7 +1193,7 @@ Return only the docstring content, properly formatted.
         except Exception as e:
             return {"success": False, "error": str(e)}
     
-    def _update_state(self, status: str, task_id: Optional[str] = None, error: Optional[str] = None) -> None:
+    def _update_state(self, status: str, task_id: str | None = None, error: str | None = None) -> None:
         """Update agent state in shared memory."""
         capabilities = [
             "documentation_generation",
@@ -1217,7 +1212,7 @@ Return only the docstring content, properly formatted.
             agent_id=self.agent_id,
             status=status,
             current_task=task_id,
-            last_heartbeat=datetime.now(timezone.utc),
+            last_heartbeat=datetime.now(UTC),
             metadata={
                 "error": error if error else None,
                 "capabilities": capabilities,
@@ -1227,7 +1222,7 @@ Return only the docstring content, properly formatted.
         )
         self.shared_memory.update_agent_state(state)
     
-    def get_capabilities(self) -> List[str]:
+    def get_capabilities(self) -> list[str]:
         """Return list of agent capabilities."""
         return [
             "documentation_generation",
@@ -1242,7 +1237,7 @@ Return only the docstring content, properly formatted.
             "documentation_validation"
         ]
     
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get current agent status."""
         return {
             "agent_id": self.agent_id,
@@ -1254,7 +1249,7 @@ Return only the docstring content, properly formatted.
             "supported_languages": list(self.code_extensions)
         }
     
-    async def execute_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_task(self, task: dict[str, Any]) -> dict[str, Any]:
         """Execute a documentation task."""
         try:
             self.logger.info(f"Docs agent executing task: {task.get('type', 'unknown')}")
@@ -1284,7 +1279,7 @@ Return only the docstring content, properly formatted.
                 "error": str(e)
             }
     
-    async def _generate_docs(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _generate_docs(self, task: dict[str, Any]) -> dict[str, Any]:
         """Generate documentation for code."""
         try:
             return {
@@ -1295,7 +1290,7 @@ Return only the docstring content, properly formatted.
         except Exception as e:
             return {"success": False, "error": str(e)}
     
-    async def _update_readme(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _update_readme(self, task: dict[str, Any]) -> dict[str, Any]:
         """Update README file."""
         try:
             return {
@@ -1305,7 +1300,7 @@ Return only the docstring content, properly formatted.
         except Exception as e:
             return {"success": False, "error": str(e)}
     
-    async def _create_api_docs(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _create_api_docs(self, task: dict[str, Any]) -> dict[str, Any]:
         """Create API documentation."""
         try:
             return {
@@ -1315,7 +1310,7 @@ Return only the docstring content, properly formatted.
         except Exception as e:
             return {"success": False, "error": str(e)}
     
-    async def _generic_docs_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _generic_docs_task(self, task: dict[str, Any]) -> dict[str, Any]:
         """Handle generic documentation tasks."""
         try:
             return {
@@ -1325,13 +1320,13 @@ Return only the docstring content, properly formatted.
         except Exception as e:
             return {"success": False, "error": str(e)}
     
-    def _update_state(self, status: str, task_id: Optional[str] = None, error: Optional[str] = None) -> None:
+    def _update_state(self, status: str, task_id: str | None = None, error: str | None = None) -> None:
         """Update agent state in shared memory."""
         state = AgentState(
             agent_id=self.agent_id,
             status=status,
             current_task=task_id,
-            last_heartbeat=datetime.now(timezone.utc),
+            last_heartbeat=datetime.now(UTC),
             metadata={
                 "error": error if error else None,
                 "capabilities": ["documentation", "readme_management"]

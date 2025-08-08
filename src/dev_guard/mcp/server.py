@@ -5,36 +5,38 @@ DevGuard's capabilities to IDEs and external tools.
 """
 
 from __future__ import annotations
+
 import asyncio
 import json
 import logging
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
+import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
 
 from .models import (
-    MCPRequest,
-    MCPResponse,
+    MCPCapabilities,
     MCPError,
     MCPInitialize,
     MCPInitializeResult,
-    MCPCapabilities,
+    MCPRequest,
+    MCPResponse,
 )
 from .tools import (
+    BaseMCPTool,
     CodeContextTool,
-    PatternSearchTool,
     DependencyAnalysisTool,
     ImpactAnalysisTool,
-    SecurityScanTool,
+    PatternSearchTool,
     RecommendationTool,
-    BaseMCPTool,
+    SecurityScanTool,
 )
 
 if TYPE_CHECKING:
+    from ..agents.base_agent import BaseAgent
     from ..memory.shared_memory import SharedMemory
     from ..memory.vector_db import VectorDatabase
-    from ..agents.base_agent import BaseAgent
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +46,9 @@ class MCPServer:
 
     def __init__(
         self,
-        shared_memory: Optional[SharedMemory] = None,
-        vector_db: Optional[VectorDatabase] = None,
-        agents: Optional[Dict[str, BaseAgent]] = None,
+        shared_memory: SharedMemory | None = None,
+        vector_db: VectorDatabase | None = None,
+        agents: dict[str, BaseAgent] | None = None,
         host: str = "localhost",
         port: int = 8080,
     ):
@@ -74,7 +76,7 @@ class MCPServer:
         )
         
         # Initialize tools
-        self.tools: Dict[str, BaseMCPTool] = {}
+        self.tools: dict[str, BaseMCPTool] = {}
         
         # Setup logger
         self.logger = logger
@@ -361,7 +363,7 @@ class MCPServer:
             del self.tools[tool_name]
             self.logger.info(f"Removed tool: {tool_name}")
 
-    def get_tool_info(self) -> Dict[str, Any]:
+    def get_tool_info(self) -> dict[str, Any]:
         """Get information about available tools."""
         return {
             tool_name: {

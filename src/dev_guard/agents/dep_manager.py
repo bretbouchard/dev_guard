@@ -7,22 +7,22 @@ version tracking, automated updates, security vulnerability scanning, compatibil
 analysis, and update justification logging.
 """
 
-import logging
+import hashlib
 import json
+import logging
 import re
 import subprocess
-import hashlib
-from datetime import datetime, timezone, timedelta
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
-from dataclasses import dataclass, asdict, field
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from enum import Enum
+from pathlib import Path
+from typing import Any
 
-from .base_agent import BaseAgent
 from ..core.config import Config
-from ..memory.shared_memory import SharedMemory, AgentState
-from ..memory.vector_db import VectorDatabase
 from ..llm.provider import LLMProvider
+from ..memory.shared_memory import AgentState, SharedMemory
+from ..memory.vector_db import VectorDatabase
+from .base_agent import BaseAgent
 
 logger = logging.getLogger(__name__)
 
@@ -58,18 +58,18 @@ class UpdateStrategy(Enum):
 class DependencyInfo:
     """Information about a specific dependency."""
     name: str
-    current_version: Optional[str]
-    latest_version: Optional[str]
+    current_version: str | None
+    latest_version: str | None
     dependency_type: DependencyType
     file_path: str
     ecosystem: str  # python, nodejs, etc.
-    constraint: Optional[str] = None  # Version constraint from file
-    license: Optional[str] = None
-    security_vulnerabilities: List[Dict[str, Any]] = field(default_factory=list)
+    constraint: str | None = None  # Version constraint from file
+    license: str | None = None
+    security_vulnerabilities: list[dict[str, Any]] = field(default_factory=list)
     update_available: bool = False
     is_outdated: bool = False
-    days_behind: Optional[int] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    days_behind: int | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -79,12 +79,12 @@ class SecurityVulnerability:
     severity: SecuritySeverity
     title: str
     description: str
-    affected_versions: List[str]
-    fixed_versions: List[str]
+    affected_versions: list[str]
+    fixed_versions: list[str]
     published_date: datetime
-    cvss_score: Optional[float] = None
-    cwe_ids: List[str] = field(default_factory=list)
-    references: List[str] = field(default_factory=list)
+    cvss_score: float | None = None
+    cwe_ids: list[str] = field(default_factory=list)
+    references: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -93,12 +93,12 @@ class DependencyAuditReport:
     audit_id: str
     repository_path: str
     start_time: datetime
-    end_time: Optional[datetime] = None
-    dependencies: List[DependencyInfo] = field(default_factory=list)
-    vulnerabilities: List[SecurityVulnerability] = field(default_factory=list)
-    statistics: Dict[str, Any] = field(default_factory=dict)
-    update_recommendations: List[Dict[str, Any]] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    end_time: datetime | None = None
+    dependencies: list[DependencyInfo] = field(default_factory=list)
+    vulnerabilities: list[SecurityVulnerability] = field(default_factory=list)
+    statistics: dict[str, Any] = field(default_factory=dict)
+    update_recommendations: list[dict[str, Any]] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class DepManagerAgent(BaseAgent):
@@ -115,14 +115,14 @@ class DepManagerAgent(BaseAgent):
         config: Config,
         shared_memory: SharedMemory,
         vector_db: VectorDatabase,
-        llm_provider: Optional[LLMProvider] = None
+        llm_provider: LLMProvider | None = None
     ):
         super().__init__(agent_id, config, shared_memory, vector_db)
         self.llm_provider = llm_provider
         
         # Initialize dependency cache
-        self.dependency_cache: Dict[str, DependencyAuditReport] = {}
-        self.vulnerability_database: Dict[str, List[SecurityVulnerability]] = {}
+        self.dependency_cache: dict[str, DependencyAuditReport] = {}
+        self.vulnerability_database: dict[str, list[SecurityVulnerability]] = {}
         
         # Common dependency file patterns
         self.dependency_files = {
@@ -145,7 +145,7 @@ class DepManagerAgent(BaseAgent):
         
         return await self.execute_task(task)
 
-    async def execute_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_task(self, task: dict[str, Any]) -> dict[str, Any]:
         """Execute a dependency management task."""
         try:
             task_type = task.get("type", "dependency_audit")
@@ -175,7 +175,7 @@ class DepManagerAgent(BaseAgent):
             self._update_state("error", error=str(e))
             return {"success": False, "error": str(e)}
 
-    async def _perform_dependency_audit(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _perform_dependency_audit(self, task: dict[str, Any]) -> dict[str, Any]:
         """Perform comprehensive dependency audit for a repository."""
         try:
             repository_path = task.get("repository_path")
@@ -192,7 +192,7 @@ class DepManagerAgent(BaseAgent):
             report = DependencyAuditReport(
                 audit_id=audit_id,
                 repository_path=str(repo_path),
-                start_time=datetime.now(timezone.utc)
+                start_time=datetime.now(UTC)
             )
             
             # Discover dependency files
@@ -215,7 +215,7 @@ class DepManagerAgent(BaseAgent):
                     self.logger.warning(f"Error enriching {dep.name}: {e}")
             
             report.dependencies = all_dependencies
-            report.end_time = datetime.now(timezone.utc)
+            report.end_time = datetime.now(UTC)
             
             # Generate statistics
             report.statistics = self._generate_dependency_statistics(all_dependencies)
@@ -248,7 +248,7 @@ class DepManagerAgent(BaseAgent):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _discover_dependency_files(self, repo_path: Path) -> Dict[Path, str]:
+    async def _discover_dependency_files(self, repo_path: Path) -> dict[Path, str]:
         """Discover dependency files in the repository."""
         discovered_files = {}
         
@@ -267,12 +267,12 @@ class DepManagerAgent(BaseAgent):
         
         return discovered_files
 
-    async def _parse_dependency_file(self, file_path: Path, ecosystem: str) -> List[DependencyInfo]:
+    async def _parse_dependency_file(self, file_path: Path, ecosystem: str) -> list[DependencyInfo]:
         """Parse dependencies from a specific file."""
         dependencies = []
         
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, encoding='utf-8') as f:
                 content = f.read()
             
             if ecosystem == "python":
@@ -289,7 +289,7 @@ class DepManagerAgent(BaseAgent):
         
         return dependencies
 
-    def _parse_python_dependencies(self, file_path: Path, content: str) -> List[DependencyInfo]:
+    def _parse_python_dependencies(self, file_path: Path, content: str) -> list[DependencyInfo]:
         """Parse Python dependency files."""
         dependencies = []
         
@@ -306,7 +306,7 @@ class DepManagerAgent(BaseAgent):
         
         return dependencies
 
-    def _parse_python_requirement_line(self, line: str, file_path: str) -> Optional[DependencyInfo]:
+    def _parse_python_requirement_line(self, line: str, file_path: str) -> DependencyInfo | None:
         """Parse a single Python requirement line."""
         # Handle different requirement formats: package==1.0, package>=1.0, package
         match = re.match(r'^([a-zA-Z0-9][a-zA-Z0-9._-]*[a-zA-Z0-9]?)([<>=!]+.+)?$', line)
@@ -331,7 +331,7 @@ class DepManagerAgent(BaseAgent):
             constraint=constraint
         )
 
-    def _parse_pyproject_toml(self, content: str, file_path: str) -> List[DependencyInfo]:
+    def _parse_pyproject_toml(self, content: str, file_path: str) -> list[DependencyInfo]:
         """Parse pyproject.toml file."""
         dependencies = []
         
@@ -373,7 +373,7 @@ class DepManagerAgent(BaseAgent):
         
         return dependencies
 
-    def _parse_nodejs_dependencies(self, file_path: Path, content: str) -> List[DependencyInfo]:
+    def _parse_nodejs_dependencies(self, file_path: Path, content: str) -> list[DependencyInfo]:
         """Parse Node.js package.json dependencies."""
         dependencies = []
         
@@ -412,7 +412,7 @@ class DepManagerAgent(BaseAgent):
         
         return dependencies
 
-    def _parse_java_dependencies(self, file_path: Path, content: str) -> List[DependencyInfo]:
+    def _parse_java_dependencies(self, file_path: Path, content: str) -> list[DependencyInfo]:
         """Parse Java dependencies from pom.xml or build.gradle."""
         dependencies = []
         
@@ -470,7 +470,7 @@ class DepManagerAgent(BaseAgent):
         except Exception as e:
             self.logger.warning(f"Error enriching {dep.name}: {e}")
 
-    async def _get_latest_version(self, package_name: str, ecosystem: str) -> Optional[str]:
+    async def _get_latest_version(self, package_name: str, ecosystem: str) -> str | None:
         """Get the latest version of a package."""
         try:
             if ecosystem == "python":
@@ -485,7 +485,7 @@ class DepManagerAgent(BaseAgent):
         
         return None
 
-    async def _get_pypi_latest_version(self, package_name: str) -> Optional[str]:
+    async def _get_pypi_latest_version(self, package_name: str) -> str | None:
         """Get latest version from PyPI."""
         try:
             result = subprocess.run(
@@ -511,7 +511,7 @@ class DepManagerAgent(BaseAgent):
         
         return None
 
-    async def _get_npm_latest_version(self, package_name: str) -> Optional[str]:
+    async def _get_npm_latest_version(self, package_name: str) -> str | None:
         """Get latest version from NPM."""
         try:
             result = subprocess.run(
@@ -529,13 +529,13 @@ class DepManagerAgent(BaseAgent):
         
         return None
 
-    async def _get_maven_latest_version(self, package_name: str) -> Optional[str]:
+    async def _get_maven_latest_version(self, package_name: str) -> str | None:
         """Get latest version from Maven Central (simplified)."""
         # This would require more complex implementation
         # For now, return None (could integrate with Maven API)
         return None
 
-    def _is_update_available(self, current: Optional[str], latest: Optional[str]) -> bool:
+    def _is_update_available(self, current: str | None, latest: str | None) -> bool:
         """Check if an update is available."""
         if not current or not latest:
             return False
@@ -555,7 +555,7 @@ class DepManagerAgent(BaseAgent):
         except (ValueError, AttributeError):
             return False
 
-    def _generate_dependency_statistics(self, dependencies: List[DependencyInfo]) -> Dict[str, Any]:
+    def _generate_dependency_statistics(self, dependencies: list[DependencyInfo]) -> dict[str, Any]:
         """Generate statistics from dependency analysis."""
         stats = {
             "total_dependencies": len(dependencies),
@@ -587,7 +587,7 @@ class DepManagerAgent(BaseAgent):
         
         return stats
 
-    def _generate_update_recommendations(self, dependencies: List[DependencyInfo]) -> List[Dict[str, Any]]:
+    def _generate_update_recommendations(self, dependencies: list[DependencyInfo]) -> list[dict[str, Any]]:
         """Generate update recommendations based on dependency analysis."""
         recommendations = []
         
@@ -639,7 +639,7 @@ class DepManagerAgent(BaseAgent):
         
         return "\n".join(summary_parts)
 
-    async def _perform_security_scan(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _perform_security_scan(self, task: dict[str, Any]) -> dict[str, Any]:
         """Perform comprehensive security vulnerability scanning."""
         try:
             repository_path = task.get("repository_path")
@@ -726,7 +726,7 @@ class DepManagerAgent(BaseAgent):
                 "scan_id": scan_id,
                 "repository_path": str(repo_path),
                 "scan_type": scan_type,
-                "scan_timestamp": datetime.now(timezone.utc).isoformat(),
+                "scan_timestamp": datetime.now(UTC).isoformat(),
                 "scan_statistics": scan_stats,
                 "vulnerabilities": [asdict(v) for v in vulnerabilities],
                 "risk_summary": self._calculate_risk_summary(vulnerabilities),
@@ -758,7 +758,7 @@ class DepManagerAgent(BaseAgent):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _enhanced_vulnerability_scan(self, dependency: DependencyInfo, scan_type: str) -> List[SecurityVulnerability]:
+    async def _enhanced_vulnerability_scan(self, dependency: DependencyInfo, scan_type: str) -> list[SecurityVulnerability]:
         """Enhanced vulnerability scanning with multiple tools and databases."""
         vulnerabilities = []
         
@@ -779,7 +779,7 @@ class DepManagerAgent(BaseAgent):
         
         return vulnerabilities
 
-    async def _scan_python_vulnerabilities_enhanced(self, dependency: DependencyInfo, scan_type: str) -> List[SecurityVulnerability]:
+    async def _scan_python_vulnerabilities_enhanced(self, dependency: DependencyInfo, scan_type: str) -> list[SecurityVulnerability]:
         """Enhanced Python vulnerability scanning with multiple sources."""
         vulnerabilities = []
         
@@ -806,7 +806,7 @@ class DepManagerAgent(BaseAgent):
                         description=vuln_data.get("description", ""),
                         affected_versions=[dependency.current_version or "unknown"],
                         fixed_versions=vuln_data.get("fix_versions", []),
-                        published_date=datetime.now(timezone.utc)
+                        published_date=datetime.now(UTC)
                     )
                     vulnerabilities.append(vulnerability)
         
@@ -815,7 +815,7 @@ class DepManagerAgent(BaseAgent):
         
         return vulnerabilities
 
-    async def _scan_nodejs_vulnerabilities_enhanced(self, dependency: DependencyInfo, scan_type: str) -> List[SecurityVulnerability]:
+    async def _scan_nodejs_vulnerabilities_enhanced(self, dependency: DependencyInfo, scan_type: str) -> list[SecurityVulnerability]:
         """Enhanced Node.js vulnerability scanning."""
         vulnerabilities = []
         
@@ -847,7 +847,7 @@ class DepManagerAgent(BaseAgent):
                                     description=advisory.get("overview", ""),
                                     affected_versions=advisory.get("vulnerable_versions", []),
                                     fixed_versions=advisory.get("patched_versions", []),
-                                    published_date=datetime.now(timezone.utc),
+                                    published_date=datetime.now(UTC),
                                     cvss_score=advisory.get("cvss_score"),
                                     cwe_ids=advisory.get("cwe", [])
                                 )
@@ -860,7 +860,7 @@ class DepManagerAgent(BaseAgent):
         
         return vulnerabilities
 
-    async def _scan_java_vulnerabilities(self, dependency: DependencyInfo, scan_type: str) -> List[SecurityVulnerability]:
+    async def _scan_java_vulnerabilities(self, dependency: DependencyInfo, scan_type: str) -> list[SecurityVulnerability]:
         """Scan Java dependencies for vulnerabilities."""
         vulnerabilities = []
         
@@ -886,7 +886,7 @@ class DepManagerAgent(BaseAgent):
         
         return vulnerabilities
 
-    async def _scan_owasp_dependency_check(self, dependency: DependencyInfo) -> List[SecurityVulnerability]:
+    async def _scan_owasp_dependency_check(self, dependency: DependencyInfo) -> list[SecurityVulnerability]:
         """Use OWASP Dependency Check for cross-ecosystem vulnerability scanning."""
         vulnerabilities = []
         
@@ -900,7 +900,7 @@ class DepManagerAgent(BaseAgent):
         
         return vulnerabilities
 
-    async def _perform_additional_security_checks(self, repo_path: Path, scan_type: str) -> List[SecurityVulnerability]:
+    async def _perform_additional_security_checks(self, repo_path: Path, scan_type: str) -> list[SecurityVulnerability]:
         """Perform additional repository-level security checks."""
         vulnerabilities = []
         
@@ -926,7 +926,7 @@ class DepManagerAgent(BaseAgent):
                     description=f"Repository missing security configuration files: {', '.join(missing_security_config)}",
                     affected_versions=["current"],
                     fixed_versions=["with security config"],
-                    published_date=datetime.now(timezone.utc)
+                    published_date=datetime.now(UTC)
                 )
                 vulnerabilities.append(vulnerability)
             
@@ -942,7 +942,7 @@ class DepManagerAgent(BaseAgent):
                             description=f"Dependency {dep_name} is {age_days} days old and may have unpatched vulnerabilities",
                             affected_versions=["current"],
                             fixed_versions=["latest"],
-                            published_date=datetime.now(timezone.utc)
+                            published_date=datetime.now(UTC)
                         )
                         vulnerabilities.append(vulnerability)
         
@@ -951,12 +951,12 @@ class DepManagerAgent(BaseAgent):
         
         return vulnerabilities
 
-    async def _check_for_ancient_dependencies(self, repo_path: Path) -> Dict[str, int]:
+    async def _check_for_ancient_dependencies(self, repo_path: Path) -> dict[str, int]:
         """Check for very old dependencies that may pose security risks."""
         # This would implement age checking - placeholder for now
         return {}
 
-    def _map_severity(self, fix_versions: List[str]) -> SecuritySeverity:
+    def _map_severity(self, fix_versions: list[str]) -> SecuritySeverity:
         """Map vulnerability data to severity level."""
         if not fix_versions:
             return SecuritySeverity.HIGH  # No fix available is serious
@@ -974,7 +974,7 @@ class DepManagerAgent(BaseAgent):
         }
         return severity_map.get(npm_severity.lower(), SecuritySeverity.MEDIUM)
 
-    def _assess_security_compliance(self, vulnerabilities: List[SecurityVulnerability]) -> Dict[str, Any]:
+    def _assess_security_compliance(self, vulnerabilities: list[SecurityVulnerability]) -> dict[str, Any]:
         """Assess security compliance status based on vulnerabilities."""
         critical_count = len([v for v in vulnerabilities if v.severity == SecuritySeverity.CRITICAL])
         high_count = len([v for v in vulnerabilities if v.severity == SecuritySeverity.HIGH])
@@ -1001,7 +1001,7 @@ class DepManagerAgent(BaseAgent):
             "compliance_notes": self._generate_compliance_notes(critical_count, high_count)
         }
 
-    def _generate_compliance_notes(self, critical_count: int, high_count: int) -> List[str]:
+    def _generate_compliance_notes(self, critical_count: int, high_count: int) -> list[str]:
         """Generate compliance notes based on vulnerability counts."""
         notes = []
         
@@ -1018,7 +1018,7 @@ class DepManagerAgent(BaseAgent):
         
         return notes
 
-    def _generate_remediation_plan(self, vulnerabilities: List[SecurityVulnerability], dependencies: List[DependencyInfo]) -> Dict[str, Any]:
+    def _generate_remediation_plan(self, vulnerabilities: list[SecurityVulnerability], dependencies: list[DependencyInfo]) -> dict[str, Any]:
         """Generate a comprehensive remediation plan."""
         remediation_plan = {
             "immediate_actions": [],
@@ -1077,7 +1077,7 @@ class DepManagerAgent(BaseAgent):
         
         return remediation_plan
 
-    def _generate_security_summary(self, security_report: Dict[str, Any]) -> str:
+    def _generate_security_summary(self, security_report: dict[str, Any]) -> str:
         """Generate human-readable security scan summary."""
         stats = security_report["scan_statistics"]
         compliance = security_report["compliance_status"]
@@ -1102,7 +1102,7 @@ class DepManagerAgent(BaseAgent):
         
         return "\n".join(summary_parts)
 
-    async def _scan_dependency_vulnerabilities(self, dependency: DependencyInfo) -> List[SecurityVulnerability]:
+    async def _scan_dependency_vulnerabilities(self, dependency: DependencyInfo) -> list[SecurityVulnerability]:
         """Scan a specific dependency for vulnerabilities."""
         vulnerabilities = []
         
@@ -1117,7 +1117,7 @@ class DepManagerAgent(BaseAgent):
         
         return vulnerabilities
 
-    async def _scan_python_vulnerabilities(self, dependency: DependencyInfo) -> List[SecurityVulnerability]:
+    async def _scan_python_vulnerabilities(self, dependency: DependencyInfo) -> list[SecurityVulnerability]:
         """Scan Python package vulnerabilities using safety or similar."""
         vulnerabilities = []
         
@@ -1141,7 +1141,7 @@ class DepManagerAgent(BaseAgent):
                         description=vuln.get("advisory", ""),
                         affected_versions=vuln.get("vulnerable_versions", []),
                         fixed_versions=[],  # Would need to parse
-                        published_date=datetime.now(timezone.utc)  # Would need actual date
+                        published_date=datetime.now(UTC)  # Would need actual date
                     )
                     vulnerabilities.append(vulnerability)
         
@@ -1152,7 +1152,7 @@ class DepManagerAgent(BaseAgent):
         
         return vulnerabilities
 
-    async def _scan_nodejs_vulnerabilities(self, dependency: DependencyInfo) -> List[SecurityVulnerability]:
+    async def _scan_nodejs_vulnerabilities(self, dependency: DependencyInfo) -> list[SecurityVulnerability]:
         """Scan Node.js package vulnerabilities."""
         vulnerabilities = []
         
@@ -1178,7 +1178,7 @@ class DepManagerAgent(BaseAgent):
                                 description=vuln_data.get("overview", ""),
                                 affected_versions=vuln_data.get("vulnerable_versions", []),
                                 fixed_versions=vuln_data.get("patched_versions", []),
-                                published_date=datetime.now(timezone.utc)
+                                published_date=datetime.now(UTC)
                             )
                             vulnerabilities.append(vulnerability)
         
@@ -1187,7 +1187,7 @@ class DepManagerAgent(BaseAgent):
         
         return vulnerabilities
 
-    def _calculate_risk_summary(self, vulnerabilities: List[SecurityVulnerability]) -> Dict[str, Any]:
+    def _calculate_risk_summary(self, vulnerabilities: list[SecurityVulnerability]) -> dict[str, Any]:
         """Calculate overall risk summary from vulnerabilities."""
         risk_counts = {
             "critical": 0,
@@ -1225,7 +1225,7 @@ class DepManagerAgent(BaseAgent):
             "recommendations": self._generate_security_recommendations(vulnerabilities)
         }
 
-    def _generate_security_recommendations(self, vulnerabilities: List[SecurityVulnerability]) -> List[str]:
+    def _generate_security_recommendations(self, vulnerabilities: list[SecurityVulnerability]) -> list[str]:
         """Generate security recommendations."""
         recommendations = []
         
@@ -1243,7 +1243,7 @@ class DepManagerAgent(BaseAgent):
         
         return recommendations
 
-    async def _check_version_updates(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _check_version_updates(self, task: dict[str, Any]) -> dict[str, Any]:
         """Check for available version updates."""
         try:
             repository_path = task.get("repository_path")
@@ -1267,7 +1267,7 @@ class DepManagerAgent(BaseAgent):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _update_dependencies(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _update_dependencies(self, task: dict[str, Any]) -> dict[str, Any]:
         """Update dependencies based on strategy."""
         try:
             repository_path = task.get("repository_path")
@@ -1289,7 +1289,7 @@ class DepManagerAgent(BaseAgent):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _analyze_compatibility(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _analyze_compatibility(self, task: dict[str, Any]) -> dict[str, Any]:
         """Analyze cross-repository compatibility."""
         try:
             source_repo = task.get("source_repository")
@@ -1310,18 +1310,18 @@ class DepManagerAgent(BaseAgent):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def _update_state(self, status: str, task_id: Optional[str] = None, error: Optional[str] = None) -> None:
+    def _update_state(self, status: str, task_id: str | None = None, error: str | None = None) -> None:
         """Update agent state."""
         state = AgentState(
             agent_id=self.agent_id,
             status=status,
             current_task=task_id,
-            last_heartbeat=datetime.now(timezone.utc),
+            last_heartbeat=datetime.now(UTC),
             metadata={"error": error if error else None}
         )
         self.shared_memory.update_agent_state(state)
     
-    def get_capabilities(self) -> List[str]:
+    def get_capabilities(self) -> list[str]:
         """Get agent capabilities."""
         return [
             "dependency_tracking",
@@ -1334,7 +1334,7 @@ class DepManagerAgent(BaseAgent):
             "risk_assessment"
         ]
     
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get agent status."""
         return {
             "agent_id": self.agent_id, 
@@ -1344,19 +1344,19 @@ class DepManagerAgent(BaseAgent):
             "supported_ecosystems": list(self.dependency_files.keys())
         }
     
-    def _update_state(self, status: str, task_id: Optional[str] = None, error: Optional[str] = None) -> None:
+    def _update_state(self, status: str, task_id: str | None = None, error: str | None = None) -> None:
         """Update agent state."""
         state = AgentState(
             agent_id=self.agent_id,
             status=status,
             current_task=task_id,
-            last_heartbeat=datetime.now(timezone.utc),
+            last_heartbeat=datetime.now(UTC),
             metadata={"error": error if error else None}
         )
         self.shared_memory.update_agent_state(state)
     
-    def get_capabilities(self) -> List[str]:
+    def get_capabilities(self) -> list[str]:
         return ["dependency_management"]
     
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {"agent_id": self.agent_id, "type": "dep_manager"}

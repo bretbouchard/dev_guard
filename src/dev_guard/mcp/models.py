@@ -5,10 +5,12 @@ server implementation in DevGuard.
 """
 
 from __future__ import annotations
-from typing import Any, Dict, List, Optional, Union
-from pydantic import BaseModel, Field
+
 import json
 from enum import Enum
+from typing import Any
+
+from pydantic import BaseModel, Field
 
 
 class MCPErrorCode(Enum):
@@ -24,7 +26,7 @@ class MCPError(BaseModel):
     """MCP error response model."""
     code: int = Field(..., description="Error code")
     message: str = Field(..., description="Error message")
-    data: Optional[Dict[str, Any]] = Field(
+    data: dict[str, Any] | None = Field(
         default=None, description="Additional error data"
     )
 
@@ -60,15 +62,15 @@ class MCPError(BaseModel):
 class MCPRequest(BaseModel):
     """MCP request model."""
     jsonrpc: str = Field(default="2.0", description="JSON-RPC version")
-    id: Union[str, int, None] = Field(..., description="Request ID")
+    id: str | int | None = Field(..., description="Request ID")
     method: str = Field(..., description="Method name")
-    params: Optional[Dict[str, Any]] = Field(
+    params: dict[str, Any] | None = Field(
         default=None, description="Method parameters"
     )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
-        data: Dict[str, Any] = {
+        data: dict[str, Any] = {
             "jsonrpc": self.jsonrpc,
             "id": self.id,
             "method": self.method,
@@ -81,17 +83,17 @@ class MCPRequest(BaseModel):
 class MCPResponse(BaseModel):
     """MCP response model."""
     jsonrpc: str = Field(default="2.0", description="JSON-RPC version")
-    id: Union[str, int, None] = Field(..., description="Request ID")
-    result: Optional[Dict[str, Any]] = Field(
+    id: str | int | None = Field(..., description="Request ID")
+    result: dict[str, Any] | None = Field(
         default=None, description="Response result"
     )
-    error: Optional[MCPError] = Field(
+    error: MCPError | None = Field(
         default=None, description="Response error"
     )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
-        data: Dict[str, Any] = {
+        data: dict[str, Any] = {
             "jsonrpc": self.jsonrpc,
             "id": self.id,
         }
@@ -107,14 +109,14 @@ class MCPResponse(BaseModel):
 
     @classmethod
     def success(
-        cls, id: Union[str, int, None], result: Dict[str, Any]
+        cls, id: str | int | None, result: dict[str, Any]
     ) -> MCPResponse:
         """Create a successful response."""
         return cls(id=id, result=result)
 
     @classmethod
     def error_response(
-        cls, id: Union[str, int, None], error: MCPError
+        cls, id: str | int | None, error: MCPError
     ) -> MCPResponse:
         """Create an error response."""
         return cls(id=id, error=error)
@@ -124,25 +126,25 @@ class MCPToolParameter(BaseModel):
     """MCP tool parameter definition."""
     name: str = Field(..., description="Parameter name")
     type: str = Field(..., description="Parameter type")
-    description: Optional[str] = Field(
+    description: str | None = Field(
         default=None, description="Parameter description"
     )
     required: bool = Field(
         default=False, description="Whether parameter is required"
     )
-    default: Optional[Any] = Field(default=None, description="Default value")
+    default: Any | None = Field(default=None, description="Default value")
 
 
 class MCPTool(BaseModel):
     """MCP tool definition."""
     name: str = Field(..., description="Tool name")
     description: str = Field(..., description="Tool description")
-    parameters: List[MCPToolParameter] = Field(
+    parameters: list[MCPToolParameter] = Field(
         default_factory=list,
         description="Tool parameters"
     )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         required_params = [
             param.name for param in self.parameters if param.required
@@ -168,14 +170,14 @@ class MCPResource(BaseModel):
     """MCP resource definition."""
     uri: str = Field(..., description="Resource URI")
     name: str = Field(..., description="Resource name")
-    description: Optional[str] = Field(
+    description: str | None = Field(
         default=None, description="Resource description"
     )
-    mime_type: Optional[str] = Field(default=None, description="MIME type")
+    mime_type: str | None = Field(default=None, description="MIME type")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
-        data: Dict[str, Any] = {
+        data: dict[str, Any] = {
             "uri": self.uri,
             "name": self.name,
         }
@@ -190,12 +192,12 @@ class MCPPrompt(BaseModel):
     """MCP prompt definition."""
     name: str = Field(..., description="Prompt name")
     description: str = Field(..., description="Prompt description")
-    arguments: List[MCPToolParameter] = Field(
+    arguments: list[MCPToolParameter] = Field(
         default_factory=list,
         description="Prompt arguments"
     )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "name": self.name,
@@ -213,25 +215,25 @@ class MCPPrompt(BaseModel):
 
 class MCPCapabilities(BaseModel):
     """MCP server capabilities."""
-    experimental: Optional[Dict[str, Any]] = Field(
+    experimental: dict[str, Any] | None = Field(
         default=None, description="Experimental capabilities"
     )
-    logging: Optional[Dict[str, Any]] = Field(
+    logging: dict[str, Any] | None = Field(
         default=None, description="Logging capabilities"
     )
-    prompts: Optional[Dict[str, Any]] = Field(
+    prompts: dict[str, Any] | None = Field(
         default=None, description="Prompts capabilities"
     )
-    resources: Optional[Dict[str, Any]] = Field(
+    resources: dict[str, Any] | None = Field(
         default=None, description="Resources capabilities"
     )
-    tools: Optional[Dict[str, Any]] = Field(
+    tools: dict[str, Any] | None = Field(
         default=None, description="Tools capabilities"
     )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
-        data: Dict[str, Any] = {}
+        data: dict[str, Any] = {}
         if self.experimental:
             data["experimental"] = self.experimental
         if self.logging:
@@ -251,9 +253,9 @@ class MCPInitialize(BaseModel):
     capabilities: MCPCapabilities = Field(
         ..., description="Client capabilities"
     )
-    client_info: Dict[str, Any] = Field(..., description="Client information")
+    client_info: dict[str, Any] = Field(..., description="Client information")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "protocolVersion": self.protocol_version,
@@ -268,9 +270,9 @@ class MCPInitializeResult(BaseModel):
     capabilities: MCPCapabilities = Field(
         ..., description="Server capabilities"
     )
-    server_info: Dict[str, Any] = Field(..., description="Server information")
+    server_info: dict[str, Any] = Field(..., description="Server information")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "protocolVersion": self.protocol_version,

@@ -1,19 +1,12 @@
 """Planner agent for DevGuard - orchestrates tasks across the swarm."""
 
-import asyncio
 import json
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple, Union
-from pathlib import Path
+from datetime import UTC, datetime
+from typing import Any
 
+from ..memory.shared_memory import AgentState, MemoryEntry
 from .base_agent import BaseAgent
-from ..core.config import Config
-from ..memory.shared_memory import (
-    SharedMemory, MemoryEntry, TaskStatus, AgentState
-)
-from ..memory.vector_db import VectorDatabase
-from ..llm.provider import LLMProvider
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +83,7 @@ class PlannerAgent(BaseAgent):
                 "subtasks": []
             }
     
-    async def _analyze_and_plan(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _analyze_and_plan(self, task: dict[str, Any]) -> dict[str, Any]:
         """Analyze a complex task and create an execution plan."""
         try:
             description = task.get("description", "")
@@ -141,7 +134,7 @@ class PlannerAgent(BaseAgent):
                 "subtasks": []
             }
     
-    async def _route_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _route_task(self, task: dict[str, Any]) -> dict[str, Any]:
         """Route a task to the most appropriate agent."""
         try:
             task_description = task.get("description", "")
@@ -173,7 +166,7 @@ class PlannerAgent(BaseAgent):
                 "target_agent": "code_agent"  # Default fallback
             }
     
-    async def _monitor_progress(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _monitor_progress(self, task: dict[str, Any]) -> dict[str, Any]:
         """Monitor progress of ongoing tasks."""
         try:
             # Get all active tasks
@@ -196,7 +189,7 @@ class PlannerAgent(BaseAgent):
                 progress_report["task_details"].append(task_detail)
                 
                 # Check for long-running tasks
-                duration = datetime.now(timezone.utc) - task_entry.created_at
+                duration = datetime.now(UTC) - task_entry.created_at
                 if duration.total_seconds() > 300:  # 5 minutes
                     progress_report["bottlenecks"].append({
                         "task_id": task_entry.id,
@@ -221,7 +214,7 @@ class PlannerAgent(BaseAgent):
                 "error": str(e)
             }
     
-    async def _coordinate_agents(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _coordinate_agents(self, task: dict[str, Any]) -> dict[str, Any]:
         """Coordinate multiple agents for complex workflows."""
         try:
             workflow_type = task.get("workflow_type", "sequential")
@@ -259,7 +252,7 @@ class PlannerAgent(BaseAgent):
                 "error": str(e)
             }
     
-    async def _generic_planning(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _generic_planning(self, task: dict[str, Any]) -> dict[str, Any]:
         """Generic planning for unknown task types."""
         try:
             description = task.get("description", "")
@@ -291,9 +284,9 @@ class PlannerAgent(BaseAgent):
     async def _llm_analyze_task(
         self, 
         description: str, 
-        context: Dict[str, Any], 
-        relevant_docs: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+        context: dict[str, Any], 
+        relevant_docs: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         """Use LLM to analyze task and create detailed plan."""
         try:
             # Construct prompt for task analysis
@@ -337,8 +330,8 @@ class PlannerAgent(BaseAgent):
     async def _heuristic_planning(
         self, 
         description: str, 
-        context: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        context: dict[str, Any]
+    ) -> dict[str, Any]:
         """Fallback heuristic planning when LLM is not available."""
         
         # Simple keyword-based analysis
@@ -381,7 +374,7 @@ class PlannerAgent(BaseAgent):
         
         return plan
     
-    def _create_subtasks(self, plan: Dict[str, Any], parent_task_id: Optional[str]) -> List[Dict[str, Any]]:
+    def _create_subtasks(self, plan: dict[str, Any], parent_task_id: str | None) -> list[dict[str, Any]]:
         """Create subtask definitions from a plan."""
         subtasks = []
         
@@ -428,7 +421,7 @@ class PlannerAgent(BaseAgent):
         # In the future, we might have multiple code agents or specialized agents
         return "code_agent"
     
-    def _format_relevant_docs(self, docs: List[Dict[str, Any]]) -> str:
+    def _format_relevant_docs(self, docs: list[dict[str, Any]]) -> str:
         """Format relevant documents for LLM context."""
         if not docs:
             return "No relevant code context found."
@@ -447,13 +440,13 @@ class PlannerAgent(BaseAgent):
         
         return "\n".join(formatted)
     
-    def _update_state(self, status: str, task_id: Optional[str] = None, error: Optional[str] = None) -> None:
+    def _update_state(self, status: str, task_id: str | None = None, error: str | None = None) -> None:
         """Update agent state in shared memory."""
         state = AgentState(
             agent_id=self.agent_id,
             status=status,
             current_task=task_id,
-            last_heartbeat=datetime.now(timezone.utc),
+            last_heartbeat=datetime.now(UTC),
             metadata={
                 "error": error if error else None,
                 "capabilities": ["planning", "task_routing", "coordination"]
@@ -461,7 +454,7 @@ class PlannerAgent(BaseAgent):
         )
         self.shared_memory.update_agent_state(state)
     
-    def get_capabilities(self) -> List[str]:
+    def get_capabilities(self) -> list[str]:
         """Return list of agent capabilities."""
         return [
             "task_analysis",
@@ -472,7 +465,7 @@ class PlannerAgent(BaseAgent):
             "dependency_management"
         ]
     
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get current agent status."""
         return {
             "agent_id": self.agent_id,

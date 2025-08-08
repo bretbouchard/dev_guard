@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..core.config import NotificationConfig
 from .base import NotificationFilter, NotificationMessage, NotificationResult
@@ -88,8 +88,8 @@ class NotificationManager:
     async def send_notification(
         self,
         message: NotificationMessage,
-        custom_filter: Optional[NotificationFilter] = None
-    ) -> List[NotificationResult]:
+        custom_filter: NotificationFilter | None = None
+    ) -> list[NotificationResult]:
         """Send notification through configured providers.
         
         Args:
@@ -161,10 +161,10 @@ class NotificationManager:
     async def send_templated_notification(
         self,
         template_name: str,
-        context: Dict[str, Any],
-        custom_filter: Optional[NotificationFilter] = None,
+        context: dict[str, Any],
+        custom_filter: NotificationFilter | None = None,
         **kwargs
-    ) -> List[NotificationResult]:
+    ) -> list[NotificationResult]:
         """Send notification using template.
         
         Args:
@@ -192,7 +192,7 @@ class NotificationManager:
         
         return await self.send_notification(message, custom_filter)
     
-    async def test_providers(self) -> Dict[str, bool]:
+    async def test_providers(self) -> dict[str, bool]:
         """Test all configured providers.
         
         Returns:
@@ -211,7 +211,7 @@ class NotificationManager:
         
         return results
     
-    def get_provider_status(self) -> Dict[str, Dict[str, Any]]:
+    def get_provider_status(self) -> dict[str, dict[str, Any]]:
         """Get status of all providers.
         
         Returns:
@@ -249,7 +249,7 @@ class NotificationManager:
         self.template_manager.register_template(template)
         logger.info(f"Custom template registered: {template_name}")
     
-    def list_templates(self) -> List[str]:
+    def list_templates(self) -> list[str]:
         """List all available templates.
         
         Returns:
@@ -257,7 +257,7 @@ class NotificationManager:
         """
         return self.template_manager.list_templates()
     
-    def update_global_filter(self, filter_config: Dict[str, Any]) -> None:
+    def update_global_filter(self, filter_config: dict[str, Any]) -> None:
         """Update global notification filter.
         
         Args:

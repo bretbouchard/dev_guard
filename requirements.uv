@@ -1,0 +1,11 @@
+# uv requirements lockfile for reproducible installs
+# This repository primarily uses pyproject.toml with uv for dependency resolution.
+# The following pins allow syncing without network resolution.
+
+-e .
+# Dev and test dependencies (keep in sync with [tool.uv].dev-dependencies)
+mypy>=1.10
+ruff>=0.5.0
+pytest>=8.2
+pytest-cov>=5.0
+

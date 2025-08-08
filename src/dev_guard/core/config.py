@@ -1,12 +1,13 @@
 """Configuration management for DevGuard."""
 
-import os
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Union
-import yaml
-from pydantic import BaseModel, Field, field_validator, ValidationError
 import logging
+import os
 from enum import Enum
+from pathlib import Path
+from typing import Any
+
+import yaml
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -60,12 +61,12 @@ class LLMConfig(BaseModel):
     """LLM provider configuration with comprehensive validation."""
     provider: LLMProvider = LLMProvider.OLLAMA
     model: str = "qwen/qwen3-235b-a22b:free"
-    api_key: Optional[str] = None
-    base_url: Optional[str] = None
+    api_key: str | None = None
+    base_url: str | None = None
     temperature: float = Field(default=0.1, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, gt=0, le=100000)
-    fallback_provider: Optional[LLMProvider] = LLMProvider.OPENAI
-    fallback_model: Optional[str] = "gpt-4o-mini"
+    fallback_provider: LLMProvider | None = LLMProvider.OPENAI
+    fallback_model: str | None = "gpt-4o-mini"
     timeout: float = Field(default=30.0, gt=0.0)
     max_retries: int = Field(default=3, ge=0, le=10)
     
@@ -88,13 +89,13 @@ class LLMConfig(BaseModel):
             raise ValueError("base_url must start with http:// or https://")
         return v
     
-    def get_api_key(self) -> Optional[str]:
+    def get_api_key(self) -> str | None:
         """Get API key from config or environment variable."""
         if self.api_key:
             return self.api_key
         return os.getenv(f"{self.provider.upper()}_API_KEY")
     
-    def get_effective_base_url(self) -> Optional[str]:
+    def get_effective_base_url(self) -> str | None:
         """Get effective base URL with environment variable override."""
         env_url = os.getenv(f"{self.provider.upper()}_BASE_URL")
         return env_url or self.base_url
@@ -109,9 +110,9 @@ class VectorDBConfig(BaseModel):
     chunk_size: int = Field(default=1000, gt=0, le=10000)
     chunk_overlap: int = Field(default=200, ge=0)
     max_documents: int = Field(default=100000, gt=0)
-    api_key: Optional[str] = None
-    environment: Optional[str] = None  # For Pinecone
-    index_name: Optional[str] = None  # For Pinecone
+    api_key: str | None = None
+    environment: str | None = None  # For Pinecone
+    index_name: str | None = None  # For Pinecone
     
     @field_validator('chunk_overlap')
     @classmethod
@@ -142,7 +143,7 @@ class VectorDBConfig(BaseModel):
             logger.warning(f"Could not create vector DB directory {path.parent}: {e}")
         return str(path)
     
-    def get_api_key(self) -> Optional[str]:
+    def get_api_key(self) -> str | None:
         """Get API key from config or environment variable."""
         if self.api_key:
             return self.api_key
@@ -189,18 +190,18 @@ class DatabaseConfig(BaseModel):
 class NotificationConfig(BaseModel):
     """Notification system configuration with comprehensive validation."""
     enabled: bool = True
-    discord_webhook: Optional[str] = None
-    slack_webhook: Optional[str] = None
-    telegram_bot_token: Optional[str] = None
-    telegram_chat_id: Optional[str] = None
-    email_smtp_server: Optional[str] = None
+    discord_webhook: str | None = None
+    slack_webhook: str | None = None
+    telegram_bot_token: str | None = None
+    telegram_chat_id: str | None = None
+    email_smtp_server: str | None = None
     email_smtp_port: int = Field(default=587, gt=0, le=65535)
     email_use_tls: bool = True
-    email_username: Optional[str] = None
-    email_password: Optional[str] = None
-    email_from: Optional[str] = None
-    email_to: List[str] = Field(default_factory=list)
-    notification_levels: List[str] = Field(default_factory=lambda: ["ERROR", "CRITICAL"])
+    email_username: str | None = None
+    email_password: str | None = None
+    email_from: str | None = None
+    email_to: list[str] = Field(default_factory=list)
+    notification_levels: list[str] = Field(default_factory=lambda: ["ERROR", "CRITICAL"])
     
     @field_validator('discord_webhook', 'slack_webhook')
     @classmethod
@@ -231,11 +232,11 @@ class NotificationConfig(BaseModel):
                 raise ValueError(f"Invalid notification level: {level}. Must be one of {valid_levels}")
         return v
     
-    def get_telegram_bot_token(self) -> Optional[str]:
+    def get_telegram_bot_token(self) -> str | None:
         """Get Telegram bot token from config or environment."""
         return self.telegram_bot_token or os.getenv("TELEGRAM_BOT_TOKEN")
     
-    def get_email_password(self) -> Optional[str]:
+    def get_email_password(self) -> str | None:
         """Get email password from config or environment."""
         return self.email_password or os.getenv("EMAIL_PASSWORD")
 
@@ -246,7 +247,7 @@ class AgentConfig(BaseModel):
     max_retries: int = Field(default=3, ge=0, le=10)
     retry_delay: float = Field(default=1.0, gt=0.0, le=60.0)
     timeout: float = Field(default=300.0, gt=0.0, le=3600.0)
-    custom_instructions: Optional[str] = Field(default=None, max_length=10000)
+    custom_instructions: str | None = Field(default=None, max_length=10000)
     priority: int = Field(default=5, ge=1, le=10)
     max_concurrent_tasks: int = Field(default=1, gt=0, le=10)
     heartbeat_interval: float = Field(default=30.0, gt=0.0, le=300.0)
@@ -260,7 +261,7 @@ class AgentConfig(BaseModel):
             return None
         return v
     
-    def get_effective_custom_instructions(self, agent_name: str) -> Optional[str]:
+    def get_effective_custom_instructions(self, agent_name: str) -> str | None:
         """Get custom instructions with environment variable override."""
         env_instructions = os.getenv(f"{agent_name.upper()}_CUSTOM_INSTRUCTIONS")
         return env_instructions or self.custom_instructions
@@ -272,11 +273,11 @@ class RepositoryConfig(BaseModel):
     branch: str = "main"
     auto_commit: bool = False
     auto_push: bool = False
-    ignore_patterns: List[str] = Field(default_factory=lambda: [
+    ignore_patterns: list[str] = Field(default_factory=lambda: [
         "*.pyc", "__pycache__", ".git", ".venv", "node_modules", "*.log",
         ".DS_Store", "Thumbs.db", "*.tmp", "*.swp", "*.bak"
     ])
-    watch_files: List[str] = Field(default_factory=lambda: [
+    watch_files: list[str] = Field(default_factory=lambda: [
         "*.py", "*.js", "*.ts", "*.md", "*.yaml", "*.yml", "*.json",
         "requirements.txt", "package.json", "pyproject.toml", "Dockerfile",
         "*.toml", "*.cfg", "*.ini", "*.sh", "*.bat"
@@ -348,7 +349,7 @@ class Config(BaseModel):
     notifications: NotificationConfig = Field(default_factory=NotificationConfig)
     
     # Agent configurations
-    agents: Dict[str, AgentConfig] = Field(default_factory=lambda: {
+    agents: dict[str, AgentConfig] = Field(default_factory=lambda: {
         "commander": AgentConfig(priority=10),
         "planner": AgentConfig(priority=9),
         "code": AgentConfig(priority=8, timeout=600.0),
@@ -362,7 +363,7 @@ class Config(BaseModel):
     })
     
     # Repository configurations
-    repositories: List[RepositoryConfig] = Field(default_factory=list)
+    repositories: list[RepositoryConfig] = Field(default_factory=list)
     
     # Swarm settings
     swarm_interval: float = Field(default=30.0, gt=0.0, le=3600.0)
@@ -433,7 +434,7 @@ class Config(BaseModel):
             except ValueError:
                 logger.warning(f"Invalid max concurrent agents: {os.getenv('DEV_GUARD_MAX_CONCURRENT_AGENTS')}")
     
-    def validate_configuration(self) -> List[str]:
+    def validate_configuration(self) -> list[str]:
         """Validate the entire configuration and return list of warnings/errors."""
         warnings = []
         
@@ -472,7 +473,7 @@ class Config(BaseModel):
         return warnings
     
     @classmethod
-    def load_from_file(cls, config_path: Optional[str] = None) -> "Config":
+    def load_from_file(cls, config_path: str | None = None) -> "Config":
         """Load configuration from YAML file with comprehensive error handling."""
         if config_path is None:
             config_path = os.getenv("DEV_GUARD_CONFIG", "config/config.yaml")
@@ -492,7 +493,7 @@ class Config(BaseModel):
         
         # Load and parse YAML
         try:
-            with open(config_file, 'r', encoding='utf-8') as f:
+            with open(config_file, encoding='utf-8') as f:
                 data = yaml.safe_load(f)
         except yaml.YAMLError as e:
             raise ConfigLoadError(f"Invalid YAML in configuration file {config_file}: {e}")
@@ -511,7 +512,7 @@ class Config(BaseModel):
             for error in e.errors():
                 field = " -> ".join(str(x) for x in error['loc'])
                 error_details.append(f"{field}: {error['msg']}")
-            raise ConfigValidationError(f"Configuration validation failed:\n" + "\n".join(error_details))
+            raise ConfigValidationError("Configuration validation failed:\n" + "\n".join(error_details))
         except Exception as e:
             raise ConfigLoadError(f"Unexpected error loading configuration: {e}")
         
@@ -527,7 +528,7 @@ class Config(BaseModel):
         return config
     
     @classmethod
-    def load_from_dict(cls, data: Dict[str, Any]) -> "Config":
+    def load_from_dict(cls, data: dict[str, Any]) -> "Config":
         """Load configuration from dictionary with validation."""
         try:
             config = cls(**data)
@@ -538,7 +539,7 @@ class Config(BaseModel):
             for error in e.errors():
                 field = " -> ".join(str(x) for x in error['loc'])
                 error_details.append(f"{field}: {error['msg']}")
-            raise ConfigValidationError(f"Configuration validation failed:\n" + "\n".join(error_details))
+            raise ConfigValidationError("Configuration validation failed:\n" + "\n".join(error_details))
     
     def save_to_file(self, config_path: str) -> None:
         """Save configuration to YAML file with error handling."""
@@ -643,7 +644,7 @@ class Config(BaseModel):
         logger.warning(f"Repository not found for removal: {repo_path}")
         return False
     
-    def get_repository_config(self, repo_path: str) -> Optional[RepositoryConfig]:
+    def get_repository_config(self, repo_path: str) -> RepositoryConfig | None:
         """Get configuration for a specific repository."""
         repo_path_resolved = str(Path(repo_path).expanduser().resolve())
         for repo in self.repositories:
@@ -663,7 +664,7 @@ def get_default_config() -> Config:
         raise ConfigError(f"Could not create default configuration: {e}")
 
 
-def load_config(config_path: Optional[str] = None) -> Config:
+def load_config(config_path: str | None = None) -> Config:
     """Load configuration from file or create default with comprehensive error handling."""
     try:
         return Config.load_from_file(config_path)
@@ -674,7 +675,7 @@ def load_config(config_path: Optional[str] = None) -> Config:
         raise ConfigError(f"Unexpected error loading configuration: {e}")
 
 
-def validate_config_file(config_path: str) -> List[str]:
+def validate_config_file(config_path: str) -> list[str]:
     """Validate a configuration file and return list of errors/warnings."""
     errors = []
     

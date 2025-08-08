@@ -1,24 +1,20 @@
 """Git watcher agent for DevGuard - monitors git repository changes with advanced multi-repository coordination."""
 
 import asyncio
+import fnmatch
+import hashlib
 import logging
 import os
 import subprocess
-import hashlib
-import fnmatch
-import time
-import json
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from enum import Enum
+from pathlib import Path
+from typing import Any
 
+from ..core.config import RepositoryConfig
+from ..memory.shared_memory import AgentState
 from .base_agent import BaseAgent
-from ..core.config import Config, RepositoryConfig
-from ..memory.shared_memory import SharedMemory, AgentState
-from ..memory.vector_db import VectorDatabase
-from ..llm.provider import LLMProvider
 
 logger = logging.getLogger(__name__)
 
@@ -36,11 +32,11 @@ class RepositoryRelationship(Enum):
 class RepositoryGroup:
     """Represents a group of related repositories."""
     name: str
-    repositories: List[str]
+    repositories: list[str]
     relationship_type: RepositoryRelationship
     priority: int = 1
     sync_strategy: str = "parallel"  # parallel, sequential, dependency_order
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: dict[str, Any] | None = None
 
     def __post_init__(self):
         if self.metadata is None:
@@ -52,12 +48,12 @@ class CrossRepoChange:
     """Represents a change that affects multiple repositories."""
     change_id: str
     primary_repository: str
-    affected_repositories: List[str]
+    affected_repositories: list[str]
     change_type: str  # commit, branch, file_change, dependency_update
     impact_level: str  # low, medium, high, critical
     timestamp: datetime
     description: str
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: dict[str, Any] | None = None
 
     def __post_init__(self):
         if self.metadata is None:
@@ -70,16 +66,16 @@ class GitWorkflowEvent:
     event_id: str
     repository: str
     event_type: str  # merge, tag, branch_create, branch_delete, pull_request
-    source_branch: Optional[str] = None
-    target_branch: Optional[str] = None
-    commit_hash: Optional[str] = None
-    author: Optional[str] = None
-    timestamp: Optional[datetime] = None
-    metadata: Optional[Dict[str, Any]] = None
+    source_branch: str | None = None
+    target_branch: str | None = None
+    commit_hash: str | None = None
+    author: str | None = None
+    timestamp: datetime | None = None
+    metadata: dict[str, Any] | None = None
 
     def __post_init__(self):
         if self.timestamp is None:
-            self.timestamp = datetime.now(timezone.utc)
+            self.timestamp = datetime.now(UTC)
         if self.metadata is None:
             self.metadata = {}
 
@@ -101,17 +97,17 @@ class GitWatcherAgent(BaseAgent):
         self.llm_provider = kwargs.get('llm_provider')
         
         # Enhanced multi-repository configuration
-        self.repositories: Dict[str, RepositoryConfig] = {}
-        self.repository_groups: Dict[str, RepositoryGroup] = {}
-        self.repository_relationships: Dict[str, Dict[str, RepositoryRelationship]] = {}
+        self.repositories: dict[str, RepositoryConfig] = {}
+        self.repository_groups: dict[str, RepositoryGroup] = {}
+        self.repository_relationships: dict[str, dict[str, RepositoryRelationship]] = {}
         
         # Enhanced tracking and coordination
-        self.file_checksums: Dict[str, Dict[str, str]] = {}  # repo_path -> {file_path: checksum}
-        self.last_commit_hashes: Dict[str, str] = {}  # repo_path -> commit_hash
-        self.branch_states: Dict[str, Dict[str, str]] = {}  # repo_path -> {branch: commit_hash}
-        self.remote_states: Dict[str, Dict[str, str]] = {}  # repo_path -> {remote: url}
-        self.cross_repo_changes: List[CrossRepoChange] = []
-        self.workflow_events: List[GitWorkflowEvent] = []
+        self.file_checksums: dict[str, dict[str, str]] = {}  # repo_path -> {file_path: checksum}
+        self.last_commit_hashes: dict[str, str] = {}  # repo_path -> commit_hash
+        self.branch_states: dict[str, dict[str, str]] = {}  # repo_path -> {branch: commit_hash}
+        self.remote_states: dict[str, dict[str, str]] = {}  # repo_path -> {remote: url}
+        self.cross_repo_changes: list[CrossRepoChange] = []
+        self.workflow_events: list[GitWorkflowEvent] = []
         
         # Advanced monitoring configuration
         self.monitoring_active = False
@@ -147,7 +143,7 @@ class GitWatcherAgent(BaseAgent):
         
         return await self.execute_task(task)
     
-    async def execute_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_task(self, task: dict[str, Any]) -> dict[str, Any]:
         """Execute an enhanced git monitoring task with multi-repository support."""
         try:
             self._update_state("busy", task.get("task_id"))
@@ -203,7 +199,7 @@ class GitWatcherAgent(BaseAgent):
             self._update_state("error", error=str(e))
             return {"success": False, "error": str(e)}
 
-    async def _monitor_repositories(self) -> Dict[str, Any]:
+    async def _monitor_repositories(self) -> dict[str, Any]:
         """Monitor all configured repositories for changes."""
         changes_detected = []
         repositories_scanned = 0
@@ -242,10 +238,10 @@ class GitWatcherAgent(BaseAgent):
             "repositories_scanned": repositories_scanned,
             "changes_detected": len(changes_detected),
             "change_details": changes_detected,
-            "monitoring_timestamp": datetime.now(timezone.utc).isoformat()
+            "monitoring_timestamp": datetime.now(UTC).isoformat()
         }
 
-    async def _scan_repository_for_changes(self, repo_name: str, repo_config: RepositoryConfig) -> Dict[str, Any]:
+    async def _scan_repository_for_changes(self, repo_name: str, repo_config: RepositoryConfig) -> dict[str, Any]:
         """Scan a single repository for changes."""
         repo_path = Path(repo_config.path)
         
@@ -291,7 +287,7 @@ class GitWatcherAgent(BaseAgent):
         
         return changes
 
-    async def _check_git_changes(self, repo_path: Path, repo_config: RepositoryConfig) -> List[Dict[str, Any]]:
+    async def _check_git_changes(self, repo_path: Path, repo_config: RepositoryConfig) -> list[dict[str, Any]]:
         """Check for Git-specific changes (commits, branches, etc.)."""
         git_changes = []
         
@@ -382,7 +378,7 @@ class GitWatcherAgent(BaseAgent):
         
         return git_changes
 
-    async def _check_file_changes(self, repo_path: Path, repo_config: RepositoryConfig, repo_name: str) -> List[Dict[str, Any]]:
+    async def _check_file_changes(self, repo_path: Path, repo_config: RepositoryConfig, repo_name: str) -> list[dict[str, Any]]:
         """Check for file system changes based on checksums."""
         file_changes = []
         current_checksums = {}
@@ -446,7 +442,7 @@ class GitWatcherAgent(BaseAgent):
         
         return file_changes
 
-    async def _get_watched_files(self, repo_path: Path, repo_config: RepositoryConfig) -> List[Path]:
+    async def _get_watched_files(self, repo_path: Path, repo_config: RepositoryConfig) -> list[Path]:
         """Get all files that should be watched based on configuration."""
         watched_files = []
         
@@ -486,14 +482,14 @@ class GitWatcherAgent(BaseAgent):
         
         return watched_files
 
-    def _should_ignore_path(self, path: str, ignore_patterns: List[str]) -> bool:
+    def _should_ignore_path(self, path: str, ignore_patterns: list[str]) -> bool:
         """Check if a path should be ignored based on patterns."""
         for pattern in ignore_patterns:
             if fnmatch.fnmatch(path, pattern) or fnmatch.fnmatch(Path(path).name, pattern):
                 return True
         return False
 
-    def _matches_watch_patterns(self, filename: str, watch_patterns: List[str]) -> bool:
+    def _matches_watch_patterns(self, filename: str, watch_patterns: list[str]) -> bool:
         """Check if a filename matches any watch pattern."""
         for pattern in watch_patterns:
             if fnmatch.fnmatch(filename, pattern):
@@ -512,7 +508,7 @@ class GitWatcherAgent(BaseAgent):
             self.logger.error(f"Error calculating checksum for {file_path}: {e}")
             return ""
 
-    async def _run_git_command(self, repo_path: Path, args: List[str]) -> str:
+    async def _run_git_command(self, repo_path: Path, args: list[str]) -> str:
         """Run a Git command and return the output."""
         try:
             cmd = ["git"] + args
@@ -537,7 +533,7 @@ class GitWatcherAgent(BaseAgent):
             self.logger.error(f"Error running Git command: {e}")
             return ""
 
-    def _generate_change_summary(self, git_changes: List[Dict[str, Any]], file_changes: List[Dict[str, Any]]) -> str:
+    def _generate_change_summary(self, git_changes: list[dict[str, Any]], file_changes: list[dict[str, Any]]) -> str:
         """Generate a human-readable summary of changes."""
         summary_parts = []
         
@@ -572,7 +568,7 @@ class GitWatcherAgent(BaseAgent):
         
         return "; ".join(summary_parts) if summary_parts else "No significant changes"
 
-    async def _scan_single_repository(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _scan_single_repository(self, task: dict[str, Any]) -> dict[str, Any]:
         """Scan a specific repository for changes."""
         repo_path = task.get("repo_path")
         if not repo_path:
@@ -587,12 +583,12 @@ class GitWatcherAgent(BaseAgent):
                 "success": True,
                 "repository_path": repo_path,
                 "changes": changes,
-                "scan_timestamp": datetime.now(timezone.utc).isoformat()
+                "scan_timestamp": datetime.now(UTC).isoformat()
             }
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _detect_repository_changes(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _detect_repository_changes(self, task: dict[str, Any]) -> dict[str, Any]:
         """Detect changes in a specific repository since last check."""
         repo_name = task.get("repo_name")
         if not repo_name or repo_name not in self.repositories:
@@ -605,10 +601,10 @@ class GitWatcherAgent(BaseAgent):
             "success": True,
             "repository": repo_name,
             "changes": changes,
-            "detection_timestamp": datetime.now(timezone.utc).isoformat()
+            "detection_timestamp": datetime.now(UTC).isoformat()
         }
 
-    async def _start_continuous_monitoring(self) -> Dict[str, Any]:
+    async def _start_continuous_monitoring(self) -> dict[str, Any]:
         """Start continuous monitoring of all repositories."""
         if self.monitoring_active:
             return {"success": True, "message": "Monitoring already active"}
@@ -623,7 +619,7 @@ class GitWatcherAgent(BaseAgent):
             "poll_interval": self.poll_interval
         }
 
-    async def _stop_continuous_monitoring(self) -> Dict[str, Any]:
+    async def _stop_continuous_monitoring(self) -> dict[str, Any]:
         """Stop continuous monitoring."""
         self.monitoring_active = False
         
@@ -646,7 +642,7 @@ class GitWatcherAgent(BaseAgent):
         
         self.logger.info("Continuous Git monitoring stopped")
 
-    async def _get_repository_status(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _get_repository_status(self, task: dict[str, Any]) -> dict[str, Any]:
         """Get the current status of a repository."""
         repo_name = task.get("repo_name")
         if not repo_name or repo_name not in self.repositories:
@@ -681,7 +677,7 @@ class GitWatcherAgent(BaseAgent):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _analyze_commit(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _analyze_commit(self, task: dict[str, Any]) -> dict[str, Any]:
         """Analyze a specific commit for detailed change information."""
         repo_name = task.get("repo_name")
         commit_hash = task.get("commit_hash")
@@ -736,7 +732,7 @@ class GitWatcherAgent(BaseAgent):
                 "success": True,
                 "commit": commit_details,
                 "file_changes": file_changes,
-                "analysis_timestamp": datetime.now(timezone.utc).isoformat()
+                "analysis_timestamp": datetime.now(UTC).isoformat()
             }
             
         except Exception as e:
@@ -746,7 +742,7 @@ class GitWatcherAgent(BaseAgent):
     # ENHANCED MULTI-REPOSITORY METHODS
     # ================================
 
-    async def _create_repository_group(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _create_repository_group(self, task: dict[str, Any]) -> dict[str, Any]:
         """Create a new repository group for coordinated monitoring."""
         try:
             group_name = task.get("group_name")
@@ -791,13 +787,13 @@ class GitWatcherAgent(BaseAgent):
                 "repositories": repositories,
                 "relationship_type": relationship_type,
                 "sync_strategy": sync_strategy,
-                "created_timestamp": datetime.now(timezone.utc).isoformat()
+                "created_timestamp": datetime.now(UTC).isoformat()
             }
 
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _sync_repository_group(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _sync_repository_group(self, task: dict[str, Any]) -> dict[str, Any]:
         """Synchronize repositories within a group based on their sync strategy."""
         try:
             group_name = task.get("group_name")
@@ -860,13 +856,13 @@ class GitWatcherAgent(BaseAgent):
                 "total_repositories": len(group.repositories),
                 "successful_syncs": successful_syncs,
                 "sync_results": sync_results,
-                "sync_timestamp": datetime.now(timezone.utc).isoformat()
+                "sync_timestamp": datetime.now(UTC).isoformat()
             }
 
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _sync_single_repository(self, repo_name: str, repo_config: RepositoryConfig) -> Dict[str, Any]:
+    async def _sync_single_repository(self, repo_name: str, repo_config: RepositoryConfig) -> dict[str, Any]:
         """Synchronize a single repository (fetch latest changes)."""
         repo_path = Path(repo_config.path)
         
@@ -909,7 +905,7 @@ class GitWatcherAgent(BaseAgent):
         except Exception as e:
             return {"repository": repo_name, "error": str(e)}
 
-    async def _analyze_cross_repository_impact(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _analyze_cross_repository_impact(self, task: dict[str, Any]) -> dict[str, Any]:
         """Analyze how changes in one repository might impact others."""
         try:
             primary_repo = task.get("repository")
@@ -926,7 +922,7 @@ class GitWatcherAgent(BaseAgent):
                 "high_impact": [],
                 "medium_impact": [],
                 "low_impact": [],
-                "analysis_timestamp": datetime.now(timezone.utc).isoformat()
+                "analysis_timestamp": datetime.now(UTC).isoformat()
             }
 
             # Check repository groups for related repositories
@@ -938,13 +934,9 @@ class GitWatcherAgent(BaseAgent):
                             affected_repos.add(repo)
                             
                             # Categorize impact based on relationship type
-                            if group.relationship_type == RepositoryRelationship.DEPENDENCY:
+                            if group.relationship_type == RepositoryRelationship.DEPENDENCY or group.relationship_type == RepositoryRelationship.SHARED_LIBRARY:
                                 impact_analysis["high_impact"].append(repo)
-                            elif group.relationship_type == RepositoryRelationship.SHARED_LIBRARY:
-                                impact_analysis["high_impact"].append(repo)
-                            elif group.relationship_type == RepositoryRelationship.MICROSERVICE:
-                                impact_analysis["medium_impact"].append(repo)
-                            elif group.relationship_type == RepositoryRelationship.MONOREPO_COMPONENT:
+                            elif group.relationship_type == RepositoryRelationship.MICROSERVICE or group.relationship_type == RepositoryRelationship.MONOREPO_COMPONENT:
                                 impact_analysis["medium_impact"].append(repo)
                             else:
                                 impact_analysis["low_impact"].append(repo)
@@ -960,7 +952,7 @@ class GitWatcherAgent(BaseAgent):
                     affected_repositories=list(affected_repos),
                     change_type=change_type,
                     impact_level=self._determine_impact_level(impact_analysis),
-                    timestamp=datetime.now(timezone.utc),
+                    timestamp=datetime.now(UTC),
                     description=f"{change_type} in {primary_repo} affecting {len(affected_repos)} repositories"
                 )
                 
@@ -985,7 +977,7 @@ class GitWatcherAgent(BaseAgent):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def _determine_impact_level(self, impact_analysis: Dict[str, Any]) -> str:
+    def _determine_impact_level(self, impact_analysis: dict[str, Any]) -> str:
         """Determine the overall impact level of a cross-repository change."""
         high_count = len(impact_analysis.get("high_impact", []))
         medium_count = len(impact_analysis.get("medium_impact", []))
@@ -1000,7 +992,7 @@ class GitWatcherAgent(BaseAgent):
         else:
             return "minimal"
 
-    async def _execute_batch_repository_operation(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _execute_batch_repository_operation(self, task: dict[str, Any]) -> dict[str, Any]:
         """Execute a batch operation across multiple repositories."""
         try:
             operation = task.get("operation")
@@ -1075,14 +1067,14 @@ class GitWatcherAgent(BaseAgent):
                 "successful_operations": successful_ops,
                 "parallel_execution": parallel,
                 "operation_results": operation_results,
-                "execution_timestamp": datetime.now(timezone.utc).isoformat()
+                "execution_timestamp": datetime.now(UTC).isoformat()
             }
 
         except Exception as e:
             return {"success": False, "error": str(e)}
 
     async def _execute_single_repo_operation(self, repo_name: str, repo_config: RepositoryConfig, 
-                                          operation: str, params: Dict[str, Any]) -> Dict[str, Any]:
+                                          operation: str, params: dict[str, Any]) -> dict[str, Any]:
         """Execute a single repository operation."""
         repo_path = Path(repo_config.path)
         
@@ -1130,7 +1122,7 @@ class GitWatcherAgent(BaseAgent):
                 # Get commit log
                 count = params.get("count", 10)
                 log_output = await self._run_git_command(
-                    repo_path, ["log", f"--oneline", f"-{count}"]
+                    repo_path, ["log", "--oneline", f"-{count}"]
                 )
                 return {
                     "operation": "log",
@@ -1143,7 +1135,7 @@ class GitWatcherAgent(BaseAgent):
         except Exception as e:
             return {"operation": operation, "error": str(e)}
 
-    async def _monitor_git_workflows(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _monitor_git_workflows(self, task: dict[str, Any]) -> dict[str, Any]:
         """Monitor Git workflows (merges, tags, branches) across repositories."""
         try:
             target_repos = task.get("repositories", list(self.repositories.keys()))
@@ -1253,13 +1245,13 @@ class GitWatcherAgent(BaseAgent):
                 "monitored_repositories": len(target_repos),
                 "workflow_events_detected": len(workflow_events),
                 "workflow_events": [asdict(event) for event in workflow_events],
-                "monitoring_timestamp": datetime.now(timezone.utc).isoformat()
+                "monitoring_timestamp": datetime.now(UTC).isoformat()
             }
 
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _sync_branches_across_repos(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _sync_branches_across_repos(self, task: dict[str, Any]) -> dict[str, Any]:
         """Synchronize specific branches across multiple repositories."""
         try:
             target_branch = task.get("branch", "main")
@@ -1331,13 +1323,13 @@ class GitWatcherAgent(BaseAgent):
                 "total_repositories": len(target_repos),
                 "successful_syncs": successful_syncs,
                 "sync_results": sync_results,
-                "sync_timestamp": datetime.now(timezone.utc).isoformat()
+                "sync_timestamp": datetime.now(UTC).isoformat()
             }
 
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _analyze_repository_health(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _analyze_repository_health(self, task: dict[str, Any]) -> dict[str, Any]:
         """Analyze the health of repositories (commit frequency, branch status, issues)."""
         try:
             target_repos = task.get("repositories", list(self.repositories.keys()))
@@ -1445,13 +1437,13 @@ class GitWatcherAgent(BaseAgent):
                 "attention_needed": len([r for r in health_analysis if r.get("status") == "attention_needed"]),
                 "poor_health": len([r for r in health_analysis if r.get("status") == "poor"]),
                 "repository_health": health_analysis,
-                "analysis_timestamp": datetime.now(timezone.utc).isoformat()
+                "analysis_timestamp": datetime.now(UTC).isoformat()
             }
 
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _coordinate_releases(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _coordinate_releases(self, task: dict[str, Any]) -> dict[str, Any]:
         """Coordinate releases across multiple repositories."""
         try:
             release_version = task.get("version")
@@ -1554,13 +1546,13 @@ class GitWatcherAgent(BaseAgent):
                 "total_repositories": len(target_repos),
                 "successful_releases": successful_releases,
                 "coordination_results": coordination_results,
-                "coordination_timestamp": datetime.now(timezone.utc).isoformat()
+                "coordination_timestamp": datetime.now(UTC).isoformat()
             }
 
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _manage_cross_repo_dependencies(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _manage_cross_repo_dependencies(self, task: dict[str, Any]) -> dict[str, Any]:
         """Manage dependencies between repositories."""
         try:
             operation = task.get("operation", "analyze")  # analyze, update, validate
@@ -1594,7 +1586,7 @@ class GitWatcherAgent(BaseAgent):
                     for dep_file in dependency_files:
                         dep_path = repo_path / dep_file
                         try:
-                            with open(dep_path, 'r') as f:
+                            with open(dep_path) as f:
                                 content = f.read()
                                 dependencies[dep_file] = self._extract_dependencies(dep_file, content)
                         except Exception as e:
@@ -1620,13 +1612,13 @@ class GitWatcherAgent(BaseAgent):
                 "operation": operation,
                 "repositories_analyzed": len([r for r in dependency_results if r["success"]]),
                 "dependency_analysis": dependency_results,
-                "analysis_timestamp": datetime.now(timezone.utc).isoformat()
+                "analysis_timestamp": datetime.now(UTC).isoformat()
             }
 
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def _extract_dependencies(self, filename: str, content: str) -> List[str]:
+    def _extract_dependencies(self, filename: str, content: str) -> list[str]:
         """Extract dependencies from dependency files."""
         dependencies = []
         
@@ -1672,7 +1664,7 @@ class GitWatcherAgent(BaseAgent):
         
         return dependencies
 
-    async def _validate_repository_consistency(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _validate_repository_consistency(self, task: dict[str, Any]) -> dict[str, Any]:
         """Validate consistency across repositories (naming, structure, configs)."""
         try:
             target_repos = task.get("repositories", list(self.repositories.keys()))
@@ -1749,7 +1741,7 @@ class GitWatcherAgent(BaseAgent):
                 "needs_attention": len([r for r in validation_results if r.get("status") == "needs_attention"]),
                 "non_compliant": len([r for r in validation_results if r.get("status") == "non_compliant"]),
                 "validation_results": validation_results,
-                "validation_timestamp": datetime.now(timezone.utc).isoformat()
+                "validation_timestamp": datetime.now(UTC).isoformat()
             }
 
         except Exception as e:
@@ -1772,18 +1764,18 @@ class GitWatcherAgent(BaseAgent):
         # Basic validation - should be descriptive
         return len(message) >= 10 and not message.startswith("fix") or message.startswith("feat") or ":" in message
 
-    def _update_state(self, status: str, task_id: Optional[str] = None, error: Optional[str] = None) -> None:
+    def _update_state(self, status: str, task_id: str | None = None, error: str | None = None) -> None:
         """Update agent state."""
         state = AgentState(
             agent_id=self.agent_id,
             status=status,
             current_task=task_id,
-            last_heartbeat=datetime.now(timezone.utc),
+            last_heartbeat=datetime.now(UTC),
             metadata={"error": error if error else None}
         )
         self.shared_memory.update_agent_state(state)
     
-    def get_capabilities(self) -> List[str]:
+    def get_capabilities(self) -> list[str]:
         """Get enhanced Git Watcher agent capabilities."""
         return [
             # Core Git monitoring
@@ -1826,7 +1818,7 @@ class GitWatcherAgent(BaseAgent):
             "comprehensive_logging"
         ]
     
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get current agent status with enhanced monitoring information."""
         return {
             "agent_id": self.agent_id,
@@ -1839,7 +1831,7 @@ class GitWatcherAgent(BaseAgent):
             "cross_repo_changes_tracked": len(self.cross_repo_changes),
             "workflow_events_tracked": len(self.workflow_events),
             "poll_interval": self.poll_interval,
-            "last_heartbeat": datetime.now(timezone.utc).isoformat(),
+            "last_heartbeat": datetime.now(UTC).isoformat(),
             "capabilities": {
                 "multi_repository_coordination": True,
                 "cross_repository_analysis": True,

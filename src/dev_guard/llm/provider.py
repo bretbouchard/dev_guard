@@ -1,12 +1,12 @@
 """Base LLM provider interface and response models."""
 
 import asyncio
-from abc import ABC, abstractmethod
-from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, field
-from enum import Enum
 import logging
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from enum import Enum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +24,8 @@ class LLMMessage:
     """A single message in an LLM conversation."""
     role: LLMRole
     content: str
-    name: Optional[str] = None
-    function_call: Optional[Dict[str, Any]] = None
+    name: str | None = None
+    function_call: dict[str, Any] | None = None
 
 
 @dataclass
@@ -42,19 +42,19 @@ class LLMResponse:
     content: str
     model: str
     provider: str
-    usage: Optional[LLMUsage] = None
-    finish_reason: Optional[str] = None
-    response_time: Optional[float] = None
-    metadata: Optional[Dict[str, Any]] = None
+    usage: LLMUsage | None = None
+    finish_reason: str | None = None
+    response_time: float | None = None
+    metadata: dict[str, Any] | None = None
     timestamp: datetime = field(
-        default_factory=lambda: datetime.now(timezone.utc)
+        default_factory=lambda: datetime.now(UTC)
     )
 
 
 class LLMProvider(ABC):
     """Abstract base class for LLM providers."""
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         self.config = config
         self.model = config.get("model", "")
         self.api_key = config.get("api_key")
@@ -70,10 +70,10 @@ class LLMProvider(ABC):
     @abstractmethod
     async def chat_completion(
         self,
-        messages: List[LLMMessage],
-        model: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
+        messages: list[LLMMessage],
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
         **kwargs: Any
     ) -> LLMResponse:
         """Generate a chat completion."""
@@ -91,10 +91,10 @@ class LLMProvider(ABC):
     
     async def chat_completion_with_retry(
         self,
-        messages: List[LLMMessage],
-        model: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
+        messages: list[LLMMessage],
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
         **kwargs: Any
     ) -> LLMResponse:
         """Generate a chat completion with retry logic."""

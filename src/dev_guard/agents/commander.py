@@ -1,19 +1,15 @@
 """Commander Agent for system oversight and coordination."""
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+from ..notifications import NotificationLevel, NotificationManager
 from .base_agent import BaseAgent
-from ..core.config import Config
-from ..notifications import NotificationManager, NotificationLevel
 
 logger = logging.getLogger(__name__)
 
 import logging
-from typing import Any, Dict, List, Optional
-from datetime import datetime, timezone
-
-from .base_agent import BaseAgent
+from datetime import UTC, datetime
 
 logger = logging.getLogger(__name__)
 
@@ -67,10 +63,10 @@ class CommanderAgent(BaseAgent):
             self.set_status("error")
             raise
     
-    async def _check_agent_health(self) -> Dict[str, Any]:
+    async def _check_agent_health(self) -> dict[str, Any]:
         """Check the health of all agents in the swarm."""
         agent_states = self.shared_memory.get_all_agent_states()
-        current_time = datetime.now(timezone.utc)
+        current_time = datetime.now(UTC)
         
         health_report = {
             "healthy": [],
@@ -103,7 +99,7 @@ class CommanderAgent(BaseAgent):
         
         return health_report
     
-    async def _handle_unhealthy_agents(self, health_report: Dict[str, Any]) -> None:
+    async def _handle_unhealthy_agents(self, health_report: dict[str, Any]) -> None:
         """Handle unhealthy or unresponsive agents."""
         for agent_id in health_report["unhealthy"]:
             self.log_decision(
@@ -155,7 +151,7 @@ class CommanderAgent(BaseAgent):
         if health_report["unresponsive"] or health_report["unhealthy"]:
             await self._send_health_alert_notifications(health_report)
     
-    async def _send_critical_error_notifications(self, errors: List[Any]) -> None:
+    async def _send_critical_error_notifications(self, errors: list[Any]) -> None:
         """Send notifications for critical errors."""
         try:
             for error in errors[:3]:  # Limit to prevent spam
@@ -175,7 +171,7 @@ class CommanderAgent(BaseAgent):
         except Exception as e:
             self.logger.error(f"Failed to send critical error notifications: {e}")
     
-    async def _send_health_alert_notifications(self, health_report: Dict[str, Any]) -> None:
+    async def _send_health_alert_notifications(self, health_report: dict[str, Any]) -> None:
         """Send notifications for agent health issues."""
         try:
             for agent_id in health_report["unresponsive"][:2]:  # Limit to prevent spam
@@ -196,7 +192,7 @@ class CommanderAgent(BaseAgent):
         except Exception as e:
             self.logger.error(f"Failed to send health alert notifications: {e}")
     
-    async def _evaluate_system_status(self) -> Dict[str, Any]:
+    async def _evaluate_system_status(self) -> dict[str, Any]:
         """Evaluate overall system status."""
         # Get recent task statistics
         recent_tasks = self.shared_memory.get_tasks(limit=50)
@@ -234,7 +230,7 @@ class CommanderAgent(BaseAgent):
         
         return system_status
     
-    async def _decide_next_action(self, state: Any, system_status: Dict[str, Any]) -> str:
+    async def _decide_next_action(self, state: Any, system_status: dict[str, Any]) -> str:
         """Decide what action to take next based on system state."""
         task_stats = system_status["task_stats"]
         
@@ -286,7 +282,7 @@ class CommanderAgent(BaseAgent):
         )
         return "monitor_repositories"
     
-    async def handle_user_request(self, request: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def handle_user_request(self, request: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
         """Handle a direct user request."""
         self.log_observation(
             f"Received user request: {request}",
@@ -360,13 +356,13 @@ class CommanderAgent(BaseAgent):
         else:
             return "general"
     
-    def get_system_overview(self) -> Dict[str, Any]:
+    def get_system_overview(self) -> dict[str, Any]:
         """Get a comprehensive system overview for user/monitoring."""
         agent_states = self.shared_memory.get_all_agent_states()
         recent_tasks = self.shared_memory.get_tasks(limit=20)
         
         return {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "agents": {
                 state.agent_id: {
                     "status": state.status,

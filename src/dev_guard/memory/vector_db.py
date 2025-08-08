@@ -1,20 +1,18 @@
 """Vector database system for DevGuard knowledge management."""
 
-import logging
-import uuid
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Union
-from datetime import datetime, timezone
 import hashlib
 import json
-import re
-import os
+import logging
 import mimetypes
+import re
+import uuid
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
 import chromadb
 from chromadb.utils import embedding_functions
-from pydantic import BaseModel, Field, field_validator, ConfigDict
-from sentence_transformers import SentenceTransformer
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ..core.config import VectorDBConfig
 
@@ -90,7 +88,7 @@ class FileProcessor:
             '.tex': 'latex'
         }
     
-    def extract_file_metadata(self, file_path: Path) -> Dict[str, Any]:
+    def extract_file_metadata(self, file_path: Path) -> dict[str, Any]:
         """
         Extract comprehensive metadata from a file.
         
@@ -113,9 +111,9 @@ class FileProcessor:
                 'file_path': str(file_path),
                 'file_extension': file_extension,
                 'file_size': stat.st_size,
-                'created_at': datetime.fromtimestamp(stat.st_ctime, tz=timezone.utc).isoformat(),
-                'modified_at': datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
-                'accessed_at': datetime.fromtimestamp(stat.st_atime, tz=timezone.utc).isoformat(),
+                'created_at': datetime.fromtimestamp(stat.st_ctime, tz=UTC).isoformat(),
+                'modified_at': datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat(),
+                'accessed_at': datetime.fromtimestamp(stat.st_atime, tz=UTC).isoformat(),
             }
             
             # Determine content type and language
@@ -170,7 +168,7 @@ class FileProcessor:
                 'error': str(e)
             }
     
-    def _extract_git_metadata(self, file_path: Path) -> Optional[Dict[str, Any]]:
+    def _extract_git_metadata(self, file_path: Path) -> dict[str, Any] | None:
         """Extract Git repository metadata if file is in a Git repo."""
         try:
             # Find the git repository root
@@ -193,7 +191,7 @@ class FileProcessor:
             self.logger.debug(f"Could not extract git metadata for {file_path}: {e}")
             return None
     
-    def _extract_project_metadata(self, file_path: Path) -> Optional[Dict[str, Any]]:
+    def _extract_project_metadata(self, file_path: Path) -> dict[str, Any] | None:
         """Extract project-specific metadata based on common project files."""
         try:
             metadata = {}
@@ -244,10 +242,10 @@ class FileProcessor:
             self.logger.debug(f"Could not extract project metadata for {file_path}: {e}")
             return None
     
-    def _extract_package_json_metadata(self, package_json_path: Path) -> Optional[Dict[str, Any]]:
+    def _extract_package_json_metadata(self, package_json_path: Path) -> dict[str, Any] | None:
         """Extract metadata from package.json file."""
         try:
-            with open(package_json_path, 'r', encoding='utf-8') as f:
+            with open(package_json_path, encoding='utf-8') as f:
                 package_data = json.load(f)
             
             metadata = {}
@@ -264,7 +262,7 @@ class FileProcessor:
             self.logger.debug(f"Could not parse package.json: {e}")
             return None
     
-    def _extract_pyproject_metadata(self, pyproject_path: Path) -> Optional[Dict[str, Any]]:
+    def _extract_pyproject_metadata(self, pyproject_path: Path) -> dict[str, Any] | None:
         """Extract metadata from pyproject.toml file."""
         try:
             import tomllib
@@ -288,7 +286,7 @@ class FileProcessor:
             self.logger.debug(f"Could not parse pyproject.toml: {e}")
             return None
     
-    def should_process_file(self, file_path: Path, ignore_patterns: Optional[List[str]] = None) -> bool:
+    def should_process_file(self, file_path: Path, ignore_patterns: list[str] | None = None) -> bool:
         """
         Determine if a file should be processed based on extension and patterns.
         
@@ -350,7 +348,7 @@ class FileProcessor:
             self.logger.error(f"Error checking if file should be processed {file_path}: {e}")
             return False
     
-    def read_file_content(self, file_path: Path) -> Optional[str]:
+    def read_file_content(self, file_path: Path) -> str | None:
         """
         Read file content with encoding detection and error handling.
         
@@ -366,7 +364,7 @@ class FileProcessor:
             
             for encoding in encodings:
                 try:
-                    with open(file_path, 'r', encoding=encoding) as f:
+                    with open(file_path, encoding=encoding) as f:
                         content = f.read()
                     
                     # Validate that we got reasonable text content
@@ -393,7 +391,7 @@ class FileProcessor:
             self.logger.error(f"Failed to read file {file_path}: {e}")
             return None
     
-    def get_file_hash(self, file_path: Path) -> Optional[str]:
+    def get_file_hash(self, file_path: Path) -> str | None:
         """
         Generate a hash of the file for change detection.
         
@@ -428,10 +426,10 @@ class Document(BaseModel):
     """Document model for vector database storage."""
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     content: str = Field(..., min_length=1, max_length=50000)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     source: str = Field(..., min_length=1, max_length=1000)
     chunk_index: int = Field(default=0, ge=0)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     
     @field_validator('content')
     @classmethod
@@ -472,7 +470,7 @@ class Document(BaseModel):
 
 class SearchResult:
     """Search result wrapper with attribute access."""
-    def __init__(self, data: Dict[str, Any]):
+    def __init__(self, data: dict[str, Any]):
         """Initialize search result from dictionary data."""
         self.id = data.get('id')
         self.content = data.get('document')  # ChromaDB returns 'document'
@@ -493,7 +491,7 @@ class TextChunker:
         self.chunk_overlap = chunk_overlap
         self.logger = logging.getLogger(__name__)
     
-    def chunk_text(self, text: str, source: str = "", metadata: Optional[Dict[str, Any]] = None) -> List[Document]:
+    def chunk_text(self, text: str, source: str = "", metadata: dict[str, Any] | None = None) -> list[Document]:
         """
         Split text into overlapping chunks and create Document objects.
         
@@ -567,7 +565,7 @@ class TextChunker:
         self.logger.debug(f"Chunked text from {source} into {len(chunks)} chunks")
         return chunks
     
-    def chunk_code(self, code: str, source: str = "", language: str = "", metadata: Optional[Dict[str, Any]] = None) -> List[Document]:
+    def chunk_code(self, code: str, source: str = "", language: str = "", metadata: dict[str, Any] | None = None) -> list[Document]:
         """
         Chunk code content with language-aware splitting.
         
@@ -600,7 +598,7 @@ class TextChunker:
             # Fall back to regular text chunking for other languages
             return self.chunk_text(code, source, code_metadata)
     
-    def _chunk_python_code(self, code: str, source: str, metadata: Dict[str, Any]) -> List[Document]:
+    def _chunk_python_code(self, code: str, source: str, metadata: dict[str, Any]) -> list[Document]:
         """Chunk Python code at function/class boundaries when possible."""
         lines = code.split('\n')
         chunks = []
@@ -672,7 +670,7 @@ class TextChunker:
         
         return chunks
     
-    def _chunk_js_code(self, code: str, source: str, metadata: Dict[str, Any]) -> List[Document]:
+    def _chunk_js_code(self, code: str, source: str, metadata: dict[str, Any]) -> list[Document]:
         """Chunk JavaScript/TypeScript code at function boundaries when possible."""
         lines = code.split('\n')
         chunks = []
@@ -822,12 +820,12 @@ class VectorDatabase:
         """Get the embedding function."""
         return self._embedding_function
     
-    def _generate_embedding(self, text: str) -> List[float]:
+    def _generate_embedding(self, text: str) -> list[float]:
         """Generate embedding for text using the embedding function."""
         embeddings = self._embedding_function([text])
         return embeddings[0] if embeddings else []
     
-    def _chunk_text(self, text: str, chunk_size: int = None, overlap: int = None) -> List[str]:
+    def _chunk_text(self, text: str, chunk_size: int = None, overlap: int = None) -> list[str]:
         """Chunk text into smaller pieces."""
         if chunk_size is None:
             chunk_size = self.config.chunk_size
@@ -896,7 +894,7 @@ class VectorDatabase:
             self.logger.error(f"Failed to add document: {e}")
             raise VectorDatabaseError(f"Failed to add document: {e}")
     
-    def add_documents(self, documents: List[Document]) -> List[str]:
+    def add_documents(self, documents: list[Document]) -> list[str]:
         """
         Add multiple documents to the vector database in batch.
         
@@ -959,9 +957,9 @@ class VectorDatabase:
         self,
         query: str,
         n_results: int = 10,
-        where: Optional[Dict[str, Any]] = None,
-        limit: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+        where: dict[str, Any] | None = None,
+        limit: int | None = None
+    ) -> list[dict[str, Any]]:
         """
         Search for similar documents in the vector database.
         
@@ -1007,7 +1005,7 @@ class VectorDatabase:
             self.logger.error(f"Failed to search documents: {e}")
             raise VectorDatabaseError(f"Failed to search documents: {e}")
     
-    def search_by_metadata(self, metadata_filter: Dict[str, Any], n_results: int = 10) -> List[Dict[str, Any]]:
+    def search_by_metadata(self, metadata_filter: dict[str, Any], n_results: int = 10) -> list[dict[str, Any]]:
         """
         Search documents by metadata criteria only (no text query).
         
@@ -1048,7 +1046,7 @@ class VectorDatabase:
             self.logger.error(f"Failed to search by metadata: {e}")
             raise VectorDatabaseError(f"Failed to search by metadata: {e}")
     
-    def search_code(self, query: str, file_extensions: Optional[List[str]] = None, n_results: int = 10) -> List[Dict[str, Any]]:
+    def search_code(self, query: str, file_extensions: list[str] | None = None, n_results: int = 10) -> list[dict[str, Any]]:
         """
         Search for code-specific content with file extension filtering.
         
@@ -1074,7 +1072,7 @@ class VectorDatabase:
             self.logger.error(f"Failed to search code: {e}")
             raise VectorDatabaseError(f"Failed to search code: {e}")
     
-    def get_document(self, document_id: str) -> Optional[Dict[str, Any]]:
+    def get_document(self, document_id: str) -> dict[str, Any] | None:
         """
         Get a specific document by ID.
         
@@ -1104,7 +1102,7 @@ class VectorDatabase:
             self.logger.error(f"Failed to get document {document_id}: {e}")
             raise VectorDatabaseError(f"Failed to get document: {e}")
     
-    def update_document(self, document_id: str, content: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> bool:
+    def update_document(self, document_id: str, content: str | None = None, metadata: dict[str, Any] | None = None) -> bool:
         """
         Update an existing document's content or metadata.
         
@@ -1213,7 +1211,7 @@ class VectorDatabase:
             self.logger.error(f"Failed to delete documents from source {source}: {e}")
             raise VectorDatabaseError(f"Failed to delete documents from source: {e}")
     
-    def add_file_content(self, file_path: Path, content: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> List[str]:
+    def add_file_content(self, file_path: Path, content: str | None = None, metadata: dict[str, Any] | None = None) -> list[str]:
         """
         Add file content to the vector database with automatic chunking and metadata extraction.
         
@@ -1245,7 +1243,7 @@ class VectorDatabase:
             # Add content hash for change detection
             combined_metadata['content_hash'] = hashlib.sha256(content.encode('utf-8')).hexdigest()
             combined_metadata['file_hash'] = self._file_processor.get_file_hash(file_path)
-            combined_metadata['ingestion_timestamp'] = datetime.now(timezone.utc).isoformat()
+            combined_metadata['ingestion_timestamp'] = datetime.now(UTC).isoformat()
             
             # Chunk the content appropriately
             if combined_metadata.get('is_code', False):
@@ -1276,7 +1274,7 @@ class VectorDatabase:
             self.logger.error(f"Failed to add file content for {file_path}: {e}")
             raise VectorDatabaseError(f"Failed to add file content: {e}")
     
-    def ingest_file(self, file_path: Path, ignore_patterns: Optional[List[str]] = None, force_update: bool = False) -> List[str]:
+    def ingest_file(self, file_path: Path, ignore_patterns: list[str] | None = None, force_update: bool = False) -> list[str]:
         """
         Ingest a single file with change detection and metadata extraction.
         
@@ -1312,8 +1310,8 @@ class VectorDatabase:
             self.logger.error(f"Failed to ingest file {file_path}: {e}")
             raise VectorDatabaseError(f"Failed to ingest file: {e}")
     
-    def ingest_directory(self, directory_path: Path, ignore_patterns: Optional[List[str]] = None, 
-                        recursive: bool = True, max_files: Optional[int] = None) -> Dict[str, Any]:
+    def ingest_directory(self, directory_path: Path, ignore_patterns: list[str] | None = None, 
+                        recursive: bool = True, max_files: int | None = None) -> dict[str, Any]:
         """
         Ingest all files in a directory with progress tracking.
         
@@ -1407,8 +1405,8 @@ class VectorDatabase:
             self.logger.debug(f"Error checking file status for {file_path}: {e}")
             return False
     
-    def search_files(self, query: str, file_extensions: Optional[List[str]] = None, 
-                    file_types: Optional[List[str]] = None, n_results: int = 10) -> List[Dict[str, Any]]:
+    def search_files(self, query: str, file_extensions: list[str] | None = None, 
+                    file_types: list[str] | None = None, n_results: int = 10) -> list[dict[str, Any]]:
         """
         Search for files with enhanced filtering options.
         
@@ -1472,7 +1470,7 @@ class VectorDatabase:
             self.logger.error(f"Failed to search files: {e}")
             raise VectorDatabaseError(f"Failed to search files: {e}")
     
-    def get_file_chunks(self, file_path: Path) -> List[Dict[str, Any]]:
+    def get_file_chunks(self, file_path: Path) -> list[dict[str, Any]]:
         """
         Get all chunks for a specific file.
         
@@ -1507,7 +1505,7 @@ class VectorDatabase:
             self.logger.error(f"Failed to get file chunks for {file_path}: {e}")
             raise VectorDatabaseError(f"Failed to get file chunks: {e}")
     
-    def get_files_by_project(self, project_name: str) -> List[Dict[str, Any]]:
+    def get_files_by_project(self, project_name: str) -> list[dict[str, Any]]:
         """
         Get all files belonging to a specific project.
         
@@ -1544,7 +1542,7 @@ class VectorDatabase:
             self.logger.error(f"Failed to get files for project {project_name}: {e}")
             raise VectorDatabaseError(f"Failed to get files for project: {e}")
     
-    def find_similar_files(self, file_path: Path, n_results: int = 5) -> List[Dict[str, Any]]:
+    def find_similar_files(self, file_path: Path, n_results: int = 5) -> list[dict[str, Any]]:
         """
         Find files similar to the given file based on content.
         
@@ -1597,7 +1595,7 @@ class VectorDatabase:
             self.logger.error(f"Failed to find similar files for {file_path}: {e}")
             raise VectorDatabaseError(f"Failed to find similar files: {e}")
     
-    def update_file_content(self, file_path: Path, content: str, metadata: Optional[Dict[str, Any]] = None) -> List[str]:
+    def update_file_content(self, file_path: Path, content: str, metadata: dict[str, Any] | None = None) -> list[str]:
         """
         Update file content in the vector database by replacing existing chunks.
         
@@ -1621,7 +1619,7 @@ class VectorDatabase:
             self.logger.error(f"Failed to update file content for {file_path}: {e}")
             raise VectorDatabaseError(f"Failed to update file content: {e}")
     
-    def get_collection_stats(self) -> Dict[str, Any]:
+    def get_collection_stats(self) -> dict[str, Any]:
         """
         Get statistics about the vector database collection.
         
@@ -1681,7 +1679,7 @@ class VectorDatabase:
         try:
             from datetime import timedelta
             
-            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+            cutoff_date = datetime.now(UTC) - timedelta(days=days)
             cutoff_iso = cutoff_date.isoformat()
             
             # Get documents older than cutoff

@@ -1,17 +1,11 @@
 """Discord notification provider."""
 
 import logging
-from typing import Dict, List, Optional
 
 import aiohttp
 from pydantic import BaseModel
 
-from .base import (
-    NotificationLevel, 
-    NotificationMessage, 
-    NotificationProvider, 
-    NotificationResult
-)
+from .base import NotificationLevel, NotificationMessage, NotificationProvider, NotificationResult
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +13,8 @@ logger = logging.getLogger(__name__)
 class DiscordWebhookMessage(BaseModel):
     """Discord webhook message format."""
     
-    content: Optional[str] = None
-    embeds: Optional[List[Dict]] = None
+    content: str | None = None
+    embeds: list[dict] | None = None
 
 
 class DiscordProvider(NotificationProvider):
@@ -29,9 +23,9 @@ class DiscordProvider(NotificationProvider):
     def __init__(
         self,
         webhook_url: str,
-        username: Optional[str] = "DevGuard",
-        avatar_url: Optional[str] = None,
-        supported_levels: Optional[List[NotificationLevel]] = None,
+        username: str | None = "DevGuard",
+        avatar_url: str | None = None,
+        supported_levels: list[NotificationLevel] | None = None,
         enabled: bool = True
     ):
         """Initialize Discord provider.
@@ -135,7 +129,7 @@ class DiscordProvider(NotificationProvider):
                 error=str(e)
             )
     
-    def _create_embed(self, message: NotificationMessage) -> Dict:
+    def _create_embed(self, message: NotificationMessage) -> dict:
         """Create Discord embed from notification message.
         
         Args:

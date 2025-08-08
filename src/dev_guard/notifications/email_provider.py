@@ -4,14 +4,8 @@ import logging
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import List, Optional
 
-from .base import (
-    NotificationLevel,
-    NotificationMessage,
-    NotificationProvider,
-    NotificationResult
-)
+from .base import NotificationLevel, NotificationMessage, NotificationProvider, NotificationResult
 
 logger = logging.getLogger(__name__)
 
@@ -23,12 +17,12 @@ class EmailProvider(NotificationProvider):
         self,
         smtp_server: str,
         smtp_port: int = 587,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
+        username: str | None = None,
+        password: str | None = None,
         use_tls: bool = True,
-        from_address: Optional[str] = None,
-        to_addresses: Optional[List[str]] = None,
-        supported_levels: Optional[List[NotificationLevel]] = None,
+        from_address: str | None = None,
+        to_addresses: list[str] | None = None,
+        supported_levels: list[NotificationLevel] | None = None,
         enabled: bool = True
     ):
         """Initialize email provider.
@@ -153,37 +147,37 @@ class EmailProvider(NotificationProvider):
             Plain text email content
         """
         lines = [
-            f"DevGuard Notification",
-            f"===================",
-            f"",
+            "DevGuard Notification",
+            "===================",
+            "",
             f"Title: {message.title}",
             f"Level: {message.level.value}",
             f"Source: {message.source}",
             f"Time: {message.timestamp.strftime('%Y-%m-%d %H:%M:%S')}",
-            f"",
-            f"Content:",
-            f"--------",
+            "",
+            "Content:",
+            "--------",
             message.content,
         ]
         
         if message.tags:
             lines.extend([
-                f"",
+                "",
                 f"Tags: {', '.join(message.tags)}"
             ])
         
         if message.metadata:
             lines.extend([
-                f"",
-                f"Additional Information:",
-                f"----------------------"
+                "",
+                "Additional Information:",
+                "----------------------"
             ])
             for key, value in message.metadata.items():
                 lines.append(f"{key.replace('_', ' ').title()}: {value}")
         
         if message.template_name:
             lines.extend([
-                f"",
+                "",
                 f"Template: {message.template_name}"
             ])
         

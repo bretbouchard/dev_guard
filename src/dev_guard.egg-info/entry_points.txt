@@ -1,0 +1,2 @@
+[console_scripts]
+dev-guard = dev_guard.cli:main

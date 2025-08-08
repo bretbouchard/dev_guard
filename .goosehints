@@ -1,0 +1,33 @@
+autocommit: true
+confirmActions: false
+
+ignorePatterns:
+  - '*.lock'
+  - 'node_modules/**'
+  - '.venv/**'
+  - 'dist/**'
+  - 'build/**'
+  - '__pycache__/**'
+
+hints:
+  - description: "Use pytest for all Python testing."
+  - description: "Type hint everything using Python 3.11+ syntax."
+  - description: "Use enum.Enum for roles, statuses, and other constants."
+  - description: "Prefer dependency injection over global imports where applicable."
+  - description: "Log warnings for any deprecated or legacy API use."
+  - description: "Add docstrings to all new functions and classes."
+  - description: "Use ruff for linting, follow PEP8."
+
+# Optional commands or environment setup
+environment:
+  python: 3.11
+  tools:
+    - pytest
+    - ruff
+    - mypy
+
+taskRules:
+  - pattern: "update.*dependency"
+    agent: dep_manager_agent
+  - pattern: "add.*doc"
+    agent: docs_agent

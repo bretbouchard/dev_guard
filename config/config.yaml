@@ -1,0 +1,142 @@
+# DevGuard Configuration File
+# Version: 1.0
+# Generated automatically - modify with care
+# Environment variables can override most settings
+
+agents:
+  code:
+    enabled: true
+    heartbeat_interval: 30.0
+    max_concurrent_tasks: 1
+    max_retries: 3
+    memory_limit_mb: 512
+    priority: 8
+    retry_delay: 1.0
+    timeout: 600.0
+  commander:
+    enabled: true
+    heartbeat_interval: 30.0
+    max_concurrent_tasks: 1
+    max_retries: 3
+    memory_limit_mb: 512
+    priority: 10
+    retry_delay: 1.0
+    timeout: 300.0
+  dep_manager:
+    enabled: true
+    heartbeat_interval: 30.0
+    max_concurrent_tasks: 1
+    max_retries: 3
+    memory_limit_mb: 512
+    priority: 6
+    retry_delay: 1.0
+    timeout: 300.0
+  docs:
+    enabled: true
+    heartbeat_interval: 30.0
+    max_concurrent_tasks: 1
+    max_retries: 3
+    memory_limit_mb: 512
+    priority: 6
+    retry_delay: 1.0
+    timeout: 300.0
+  git_watcher:
+    enabled: true
+    heartbeat_interval: 10.0
+    max_concurrent_tasks: 1
+    max_retries: 3
+    memory_limit_mb: 512
+    priority: 8
+    retry_delay: 1.0
+    timeout: 300.0
+  impact_mapper:
+    enabled: true
+    heartbeat_interval: 30.0
+    max_concurrent_tasks: 1
+    max_retries: 3
+    memory_limit_mb: 512
+    priority: 7
+    retry_delay: 1.0
+    timeout: 300.0
+  planner:
+    enabled: true
+    heartbeat_interval: 30.0
+    max_concurrent_tasks: 1
+    max_retries: 3
+    memory_limit_mb: 512
+    priority: 9
+    retry_delay: 1.0
+    timeout: 300.0
+  qa_test:
+    enabled: true
+    heartbeat_interval: 30.0
+    max_concurrent_tasks: 1
+    max_retries: 3
+    memory_limit_mb: 512
+    priority: 7
+    retry_delay: 1.0
+    timeout: 900.0
+  red_team:
+    enabled: true
+    heartbeat_interval: 30.0
+    max_concurrent_tasks: 1
+    max_retries: 3
+    memory_limit_mb: 512
+    priority: 9
+    retry_delay: 1.0
+    timeout: 1200.0
+  repo_auditor:
+    enabled: true
+    heartbeat_interval: 30.0
+    max_concurrent_tasks: 1
+    max_retries: 3
+    memory_limit_mb: 512
+    priority: 5
+    retry_delay: 1.0
+    timeout: 1800.0
+audit_retention_days: 30
+config_version: '1.0'
+cpu_limit_percent: 80
+data_dir: ./data
+database:
+  echo: false
+  max_overflow: 10
+  pool_size: 5
+  pool_timeout: 30.0
+  type: sqlite
+  url: sqlite:///./data/dev_guard.db
+debug: false
+enable_audit_trail: true
+enable_security_scanning: true
+llm:
+  base_url: http://localhost:11435  # Updated Ollama server port
+  fallback_model: gpt-4o-mini
+  fallback_provider: openrouter
+  max_retries: 3
+  max_tokens: 32768  # Increased for GPT-OSS 128K context capability
+  model: gpt-oss:20b  # Updated to use GPT-OSS 20B model
+  provider: ollama
+  temperature: 0.1
+  timeout: 60.0  # Increased timeout for larger model
+log_level: INFO
+max_concurrent_agents: 5
+memory_limit_mb: 2048
+notifications:
+  email_smtp_port: 587
+  email_to: []
+  email_use_tls: true
+  enabled: true
+  notification_levels:
+  - ERROR
+  - CRITICAL
+repositories: []
+security_scan_interval: 3600.0
+swarm_interval: 30.0
+vector_db:
+  chunk_overlap: 200
+  chunk_size: 1000
+  collection_name: dev_guard_knowledge
+  embedding_model: sentence-transformers/all-MiniLM-L6-v2
+  max_documents: 100000
+  path: ./data/vector_db
+  provider: chroma

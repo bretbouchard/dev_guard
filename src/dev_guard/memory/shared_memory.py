@@ -1,36 +1,34 @@
 """Shared memory system for DevGuard agents."""
 
-import asyncio
 import json
+import logging
 import sqlite3
 import threading
-from datetime import datetime, timezone, timedelta
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Union
-from dataclasses import dataclass, asdict
-from contextlib import contextmanager
 import uuid
-import logging
+from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class MemoryEntry(BaseModel):
     """A single memory entry in the shared memory system."""
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     agent_id: str = Field(..., min_length=1, max_length=100)
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     type: str = Field(..., pattern=r'^(task|observation|decision|result|error|control)$')
-    content: Dict[str, Any] = Field(..., min_length=1)
-    tags: Set[str] = Field(default_factory=set)
-    parent_id: Optional[str] = Field(None, pattern=r'^[0-9a-f-]{36}$')
-    context: Dict[str, Any] = Field(default_factory=dict)
+    content: dict[str, Any] = Field(..., min_length=1)
+    tags: set[str] = Field(default_factory=set)
+    parent_id: str | None = Field(None, pattern=r'^[0-9a-f-]{36}$')
+    context: dict[str, Any] = Field(default_factory=dict)
     
     # GoosePatch and AST metadata fields for Task 3.3
-    goose_patch: Optional[Dict[str, Any]] = Field(None, description="Goose tool outputs and patch metadata")
-    ast_summary: Optional[Dict[str, Any]] = Field(None, description="AST analysis and summary metadata")  
-    goose_strategy: Optional[str] = Field(None, description="Goose refactoring strategy used")
-    file_path: Optional[str] = Field(None, description="Path to original file for AST linking")
+    goose_patch: dict[str, Any] | None = Field(None, description="Goose tool outputs and patch metadata")
+    ast_summary: dict[str, Any] | None = Field(None, description="AST analysis and summary metadata")  
+    goose_strategy: str | None = Field(None, description="Goose refactoring strategy used")
+    file_path: str | None = Field(None, description="Path to original file for AST linking")
     
     @field_validator('agent_id')
     @classmethod
@@ -81,12 +79,12 @@ class TaskStatus(BaseModel):
     agent_id: str = Field(..., min_length=1, max_length=100)
     status: str = Field(..., pattern=r'^(pending|running|completed|failed|cancelled)$')
     description: str = Field(..., min_length=1, max_length=1000)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    dependencies: List[str] = Field(default_factory=list)
-    result: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    dependencies: list[str] = Field(default_factory=list)
+    result: dict[str, Any] | None = None
+    error: str | None = None
     
     @field_validator('agent_id')
     @classmethod
@@ -122,9 +120,9 @@ class AgentState(BaseModel):
     """Current state of an agent."""
     agent_id: str = Field(..., min_length=1, max_length=100)
     status: str = Field(..., pattern=r'^(idle|busy|error|stopped)$')
-    current_task: Optional[str] = Field(None, pattern=r'^[0-9a-f-]{36}$')
-    last_heartbeat: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    current_task: str | None = Field(None, pattern=r'^[0-9a-f-]{36}$')
+    last_heartbeat: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    metadata: dict[str, Any] = Field(default_factory=dict)
     
     @field_validator('agent_id')
     @classmethod
@@ -137,7 +135,7 @@ class AgentState(BaseModel):
     @classmethod
     def validate_heartbeat(cls, v):
         # Heartbeat cannot be in the future (with 1 minute tolerance)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if v > now + timedelta(minutes=1):
             raise ValueError('last_heartbeat cannot be in the future')
         return v
@@ -320,12 +318,12 @@ class SharedMemory:
     
     def get_memories(
         self,
-        agent_id: Optional[str] = None,
-        memory_type: Optional[str] = None,
-        tags: Optional[Set[str]] = None,
+        agent_id: str | None = None,
+        memory_type: str | None = None,
+        tags: set[str] | None = None,
         limit: int = 100,
-        since: Optional[datetime] = None
-    ) -> List[MemoryEntry]:
+        since: datetime | None = None
+    ) -> list[MemoryEntry]:
         """Retrieve memory entries based on filters."""
         with self._lock:
             query = "SELECT * FROM memory_entries WHERE 1=1"
@@ -445,7 +443,7 @@ class SharedMemory:
             self.logger.error(f"Failed to delete memory entry {entry_id}: {e}")
             raise SharedMemoryError(f"Failed to delete memory entry: {e}")
     
-    def get_memory_by_id(self, entry_id: str) -> Optional[MemoryEntry]:
+    def get_memory_by_id(self, entry_id: str) -> MemoryEntry | None:
         """Get a specific memory entry by ID."""
         try:
             with self._lock:
@@ -561,7 +559,7 @@ class SharedMemory:
                                 raise ValueError(f"Dependency task {dep_id} does not exist")
                     
                     # Always update the timestamp
-                    updates['updated_at'] = datetime.now(timezone.utc).isoformat()
+                    updates['updated_at'] = datetime.now(UTC).isoformat()
                     
                     # Prepare the update query
                     set_clauses = []
@@ -593,7 +591,7 @@ class SharedMemory:
             self.logger.error(f"Failed to update task {task_id}: {e}")
             raise SharedMemoryError(f"Failed to update task: {e}")
     
-    def get_task(self, task_id: str) -> Optional[TaskStatus]:
+    def get_task(self, task_id: str) -> TaskStatus | None:
         """Get a specific task by ID."""
         with self._lock:
             with self._get_connection() as conn:
@@ -619,10 +617,10 @@ class SharedMemory:
     
     def get_tasks(
         self,
-        agent_id: Optional[str] = None,
-        status: Optional[str] = None,
+        agent_id: str | None = None,
+        status: str | None = None,
         limit: int = 50
-    ) -> List[TaskStatus]:
+    ) -> list[TaskStatus]:
         """Get tasks based on filters."""
         with self._lock:
             query = "SELECT * FROM task_status WHERE 1=1"
@@ -715,7 +713,7 @@ class SharedMemory:
             self.logger.error(f"Failed to update agent state for {state.agent_id}: {e}")
             raise SharedMemoryError(f"Failed to update agent state: {e}")
     
-    def get_agent_state(self, agent_id: str) -> Optional[AgentState]:
+    def get_agent_state(self, agent_id: str) -> AgentState | None:
         """Get the current state of an agent."""
         with self._lock:
             with self._get_connection() as conn:
@@ -734,7 +732,7 @@ class SharedMemory:
                 metadata=json.loads(row['metadata'] or '{}')
             )
     
-    def get_all_agent_states(self) -> List[AgentState]:
+    def get_all_agent_states(self) -> list[AgentState]:
         """Get the current state of all agents."""
         with self._lock:
             with self._get_connection() as conn:
@@ -753,7 +751,7 @@ class SharedMemory:
             
             return states
 
-    def get_agent_states(self) -> Dict[str, AgentState]:
+    def get_agent_states(self) -> dict[str, AgentState]:
         """Get the current state of all agents as a dictionary keyed by agent_id."""
         states = self.get_all_agent_states()
         return {state.agent_id: state for state in states}
@@ -777,10 +775,10 @@ class SharedMemory:
             self.logger.error(f"Failed to delete agent state for {agent_id}: {e}")
             raise SharedMemoryError(f"Failed to delete agent state: {e}")
     
-    def cleanup_old_entries(self, days: int = 30) -> Dict[str, int]:
+    def cleanup_old_entries(self, days: int = 30) -> dict[str, int]:
         """Remove old entries from all tables."""
         try:
-            cutoff = datetime.now(timezone.utc).replace(
+            cutoff = datetime.now(UTC).replace(
                 hour=0, minute=0, second=0, microsecond=0
             ) - timedelta(days=days)
             
@@ -803,7 +801,7 @@ class SharedMemory:
                     deleted_counts['tasks'] = cursor.rowcount
                     
                     # Clean up agent states with old heartbeats (more than 1 hour)
-                    old_heartbeat = datetime.now(timezone.utc) - timedelta(hours=1)
+                    old_heartbeat = datetime.now(UTC) - timedelta(hours=1)
                     cursor = conn.execute(
                         "DELETE FROM agent_states WHERE last_heartbeat < ?",
                         (old_heartbeat.isoformat(),)
@@ -820,7 +818,7 @@ class SharedMemory:
             self.logger.error(f"Failed to cleanup old entries: {e}")
             raise SharedMemoryError(f"Failed to cleanup old entries: {e}")
     
-    def get_conversation_thread(self, entry_id: str) -> List[MemoryEntry]:
+    def get_conversation_thread(self, entry_id: str) -> list[MemoryEntry]:
         """Get a conversation thread starting from a specific entry."""
         try:
             memories = []
@@ -862,7 +860,7 @@ class SharedMemory:
             self.logger.error(f"Failed to get conversation thread for {entry_id}: {e}")
             raise SharedMemoryError(f"Failed to get conversation thread: {e}")
     
-    def _get_child_entries(self, parent_id: str, memories: List[MemoryEntry], visited: Set[str]) -> None:
+    def _get_child_entries(self, parent_id: str, memories: list[MemoryEntry], visited: set[str]) -> None:
         """Recursively get child entries."""
         if parent_id in visited:
             return  # Prevent infinite recursion
@@ -894,8 +892,8 @@ class SharedMemory:
                 # Recursively get children of this entry
                 self._get_child_entries(entry.id, memories, visited)
     
-    def search_memories(self, query: str, agent_id: Optional[str] = None, 
-                       memory_type: Optional[str] = None, limit: int = 50) -> List[MemoryEntry]:
+    def search_memories(self, query: str, agent_id: str | None = None, 
+                       memory_type: str | None = None, limit: int = 50) -> list[MemoryEntry]:
         """Search memory entries by content."""
         try:
             with self._lock:
@@ -939,7 +937,7 @@ class SharedMemory:
             self.logger.error(f"Failed to search memories: {e}")
             raise SharedMemoryError(f"Failed to search memories: {e}")
     
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """Get database statistics."""
         try:
             with self._lock:
@@ -988,10 +986,10 @@ class SharedMemory:
             self.logger.error(f"Failed to get statistics: {e}")
             raise SharedMemoryError(f"Failed to get statistics: {e}")
     
-    def get_audit_trail(self, agent_id: Optional[str] = None, 
-                       start_time: Optional[datetime] = None,
-                       end_time: Optional[datetime] = None,
-                       limit: int = 100) -> List[MemoryEntry]:
+    def get_audit_trail(self, agent_id: str | None = None, 
+                       start_time: datetime | None = None,
+                       end_time: datetime | None = None,
+                       limit: int = 100) -> list[MemoryEntry]:
         """Get audit trail of memory entries for analysis and replay."""
         try:
             with self._lock:
@@ -1036,7 +1034,7 @@ class SharedMemory:
             self.logger.error(f"Failed to get audit trail: {e}")
             raise SharedMemoryError(f"Failed to get audit trail: {e}")
     
-    def replay_actions(self, entries: List[MemoryEntry]) -> Dict[str, Any]:
+    def replay_actions(self, entries: list[MemoryEntry]) -> dict[str, Any]:
         """Replay a sequence of memory entries for analysis."""
         try:
             replay_summary = {
@@ -1096,10 +1094,10 @@ class SharedMemory:
             self.logger.error(f"Failed to replay actions: {e}")
             raise SharedMemoryError(f"Failed to replay actions: {e}")
     
-    def archive_old_entries(self, days: int = 90, archive_path: Optional[str] = None) -> Dict[str, Any]:
+    def archive_old_entries(self, days: int = 90, archive_path: str | None = None) -> dict[str, Any]:
         """Archive old entries to a separate database or file."""
         try:
-            cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+            cutoff = datetime.now(UTC) - timedelta(days=days)
             
             # Get entries to archive
             entries_to_archive = []
@@ -1149,7 +1147,7 @@ class SharedMemory:
             
             # Create archive
             archive_data = {
-                'archived_at': datetime.now(timezone.utc).isoformat(),
+                'archived_at': datetime.now(UTC).isoformat(),
                 'cutoff_date': cutoff.isoformat(),
                 'memory_entries': entries_to_archive,
                 'tasks': tasks_to_archive
@@ -1180,7 +1178,7 @@ class SharedMemory:
             self.logger.error(f"Failed to archive old entries: {e}")
             raise SharedMemoryError(f"Failed to archive old entries: {e}")
     
-    def get_memory_by_tags(self, tags: Set[str], match_all: bool = False, limit: int = 50) -> List[MemoryEntry]:
+    def get_memory_by_tags(self, tags: set[str], match_all: bool = False, limit: int = 50) -> list[MemoryEntry]:
         """Get memory entries by tags."""
         try:
             with self._lock:
@@ -1246,17 +1244,17 @@ class SharedMemory:
     def log_goose_patch_memory(
         self,
         agent_id: str,
-        goose_patch: Dict[str, Any],
-        ast_summary: Optional[Dict[str, Any]] = None,
-        goose_strategy: Optional[str] = None,
-        file_path: Optional[str] = None,
-        parent_id: Optional[str] = None
+        goose_patch: dict[str, Any],
+        ast_summary: dict[str, Any] | None = None,
+        goose_strategy: str | None = None,
+        file_path: str | None = None,
+        parent_id: str | None = None
     ) -> str:
         """Log Goose tool outputs and reasoning in shared memory for traceability."""
         content = {
             "action": "goose_patch_applied",
             "patch_metadata": goose_patch,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(UTC).isoformat()
         }
         
         if ast_summary:
@@ -1280,16 +1278,16 @@ class SharedMemory:
         self,
         agent_id: str,
         file_path: str,
-        ast_summary: Dict[str, Any],
-        refactor_strategy: Optional[str] = None,
-        parent_id: Optional[str] = None
+        ast_summary: dict[str, Any],
+        refactor_strategy: str | None = None,
+        parent_id: str | None = None
     ) -> str:
         """Log AST analysis and refactoring strategies for auditability."""
         content = {
             "action": "ast_analysis",
             "file_analyzed": file_path,
             "analysis_results": ast_summary,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(UTC).isoformat()
         }
         
         if refactor_strategy:
@@ -1309,7 +1307,7 @@ class SharedMemory:
         
         return self.add_memory(entry)
 
-    def get_goose_patches_for_file(self, file_path: str) -> List[MemoryEntry]:
+    def get_goose_patches_for_file(self, file_path: str) -> list[MemoryEntry]:
         """Retrieve all Goose patches applied to a specific file."""
         try:
             with self._lock:
@@ -1347,7 +1345,7 @@ class SharedMemory:
             self.logger.error(f"Failed to get Goose patches for file {file_path}: {e}")
             raise SharedMemoryError(f"Failed to get Goose patches: {e}")
 
-    def get_ast_summaries_by_strategy(self, goose_strategy: str) -> List[MemoryEntry]:
+    def get_ast_summaries_by_strategy(self, goose_strategy: str) -> list[MemoryEntry]:
         """Retrieve AST summaries that used a specific Goose refactoring strategy."""
         try:
             with self._lock:

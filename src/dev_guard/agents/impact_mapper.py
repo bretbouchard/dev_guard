@@ -7,22 +7,18 @@ of code structure, API changes, dependency relationships, and cross-repository
 coordination requirements.
 """
 
-import logging
 import ast
-import re
 import json
-import subprocess
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Union, Tuple
-from dataclasses import dataclass, asdict
+import logging
+import re
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from enum import Enum
+from pathlib import Path
+from typing import Any
 
+from ..memory.shared_memory import AgentState
 from .base_agent import BaseAgent
-from ..core.config import Config
-from ..memory.shared_memory import SharedMemory, AgentState
-from ..memory.vector_db import VectorDatabase
-from ..llm.provider import LLMProvider
 
 logger = logging.getLogger(__name__)
 
@@ -57,14 +53,14 @@ class ImpactAnalysis:
     impact_type: ImpactType
     severity: ImpactSeverity
     description: str
-    affected_files: List[str]
-    affected_functions: List[str]
-    affected_classes: List[str]
-    breaking_changes: List[Dict[str, Any]]
-    recommendations: List[str]
+    affected_files: list[str]
+    affected_functions: list[str]
+    affected_classes: list[str]
+    breaking_changes: list[dict[str, Any]]
+    recommendations: list[str]
     estimated_effort: str  # hours, days, weeks
     timestamp: datetime
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: dict[str, Any] | None = None
 
     def __post_init__(self):
         if self.metadata is None:
@@ -75,24 +71,24 @@ class ImpactAnalysis:
 class APIChange:
     """Represents an API change with impact analysis."""
     function_name: str
-    class_name: Optional[str]
+    class_name: str | None
     file_path: str
     change_type: str  # added, removed, modified, deprecated
-    old_signature: Optional[str]
-    new_signature: Optional[str]
+    old_signature: str | None
+    new_signature: str | None
     breaking: bool
-    deprecation_info: Optional[Dict[str, Any]] = None
+    deprecation_info: dict[str, Any] | None = None
 
 
 @dataclass
 class DependencyImpact:
     """Represents dependency relationship impact."""
     dependency_name: str
-    old_version: Optional[str]
-    new_version: Optional[str]
-    affected_repositories: List[str]
-    compatibility_issues: List[str]
-    upgrade_path: List[str]
+    old_version: str | None
+    new_version: str | None
+    affected_repositories: list[str]
+    compatibility_issues: list[str]
+    upgrade_path: list[str]
 
 
 class ImpactMapperAgent(BaseAgent):
@@ -114,10 +110,10 @@ class ImpactMapperAgent(BaseAgent):
         self.llm_provider = kwargs.get('llm_provider')
         
         # Impact analysis state
-        self.repository_mappings: Dict[str, Dict[str, Any]] = {}
-        self.api_definitions: Dict[str, Dict[str, Any]] = {}
-        self.dependency_graph: Dict[str, Set[str]] = {}
-        self.impact_history: List[ImpactAnalysis] = []
+        self.repository_mappings: dict[str, dict[str, Any]] = {}
+        self.api_definitions: dict[str, dict[str, Any]] = {}
+        self.dependency_graph: dict[str, set[str]] = {}
+        self.impact_history: list[ImpactAnalysis] = []
         
         # Analysis patterns and rules
         self.api_patterns = {
@@ -147,7 +143,7 @@ class ImpactMapperAgent(BaseAgent):
         
         return await self.execute_task(task)
     
-    async def execute_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_task(self, task: dict[str, Any]) -> dict[str, Any]:
         """Execute a comprehensive impact analysis task."""
         try:
             self._update_state("busy", task.get("task_id"))
@@ -185,7 +181,7 @@ class ImpactMapperAgent(BaseAgent):
     # CORE IMPACT ANALYSIS METHODS
     # ================================
     
-    async def _analyze_cross_repository_impact(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _analyze_cross_repository_impact(self, task: dict[str, Any]) -> dict[str, Any]:
         """Perform comprehensive cross-repository impact analysis."""
         try:
             source_repo = task.get("source_repository")
@@ -234,13 +230,13 @@ class ImpactMapperAgent(BaseAgent):
                 "low_impacts": len([i for i in impact_results if i.severity == ImpactSeverity.LOW]),
                 "impact_details": [asdict(impact) for impact in impact_results],
                 "recommendations": recommendations,
-                "analysis_timestamp": datetime.now(timezone.utc).isoformat()
+                "analysis_timestamp": datetime.now(UTC).isoformat()
             }
             
         except Exception as e:
             return {"success": False, "error": str(e)}
     
-    async def _analyze_repository_changes(self, repository: str, changed_files: List[str]) -> Dict[str, Any]:
+    async def _analyze_repository_changes(self, repository: str, changed_files: list[str]) -> dict[str, Any]:
         """Analyze changes within a repository to understand their nature."""
         analysis = {
             "api_changes": [],
@@ -285,12 +281,12 @@ class ImpactMapperAgent(BaseAgent):
             self.logger.error(f"Error analyzing repository changes: {e}")
             return analysis
     
-    async def _analyze_code_file(self, file_path: Path, relative_path: str) -> Dict[str, Any]:
+    async def _analyze_code_file(self, file_path: Path, relative_path: str) -> dict[str, Any]:
         """Analyze a code file for API and breaking changes."""
         analysis = {"api_changes": [], "breaking_changes": []}
         
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, encoding='utf-8') as f:
                 content = f.read()
             
             # Extract API definitions
@@ -313,7 +309,7 @@ class ImpactMapperAgent(BaseAgent):
         return analysis
     
     async def _analyze_repository_pair_impact(self, source_repo: str, target_repo: str, 
-                                            change_analysis: Dict[str, Any]) -> Optional[ImpactAnalysis]:
+                                            change_analysis: dict[str, Any]) -> ImpactAnalysis | None:
         """Analyze impact between two specific repositories."""
         try:
             # Check if repositories are related
@@ -369,7 +365,7 @@ class ImpactMapperAgent(BaseAgent):
                 breaking_changes=change_analysis["breaking_changes"],
                 recommendations=await self._generate_mitigation_recommendations(impacts),
                 estimated_effort=self._estimate_coordination_effort(impacts, severity),
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 metadata={
                     "relationship_type": relationship,
                     "change_count": len(impacts),
@@ -388,7 +384,7 @@ class ImpactMapperAgent(BaseAgent):
     # API ANALYSIS METHODS
     # ================================
     
-    async def _analyze_api_changes(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _analyze_api_changes(self, task: dict[str, Any]) -> dict[str, Any]:
         """Analyze API changes and their cross-repository impact."""
         try:
             source_repo = task.get("source_repository")
@@ -418,13 +414,13 @@ class ImpactMapperAgent(BaseAgent):
                 "api_changes_analyzed": len(api_changes),
                 "affected_repositories": len(set(r["repository"] for r in analysis_results)),
                 "impact_details": analysis_results,
-                "analysis_timestamp": datetime.now(timezone.utc).isoformat()
+                "analysis_timestamp": datetime.now(UTC).isoformat()
             }
             
         except Exception as e:
             return {"success": False, "error": str(e)}
     
-    async def _analyze_dependency_impact(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _analyze_dependency_impact(self, task: dict[str, Any]) -> dict[str, Any]:
         """Analyze dependency changes and their cross-repository impact."""
         try:
             source_repo = task.get("source_repository")
@@ -468,13 +464,13 @@ class ImpactMapperAgent(BaseAgent):
                     for repo in dep["affected_repositories"]
                 )),
                 "dependency_impacts": impact_analysis,
-                "analysis_timestamp": datetime.now(timezone.utc).isoformat()
+                "analysis_timestamp": datetime.now(UTC).isoformat()
             }
             
         except Exception as e:
             return {"success": False, "error": str(e)}
     
-    async def _map_repository_relationships(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _map_repository_relationships(self, task: dict[str, Any]) -> dict[str, Any]:
         """Map and analyze relationships between repositories."""
         try:
             repositories = task.get("repositories", [])
@@ -510,13 +506,13 @@ class ImpactMapperAgent(BaseAgent):
                 "relationship_map": relationship_map,
                 "dependency_graph": dependency_graph,
                 "inter_repo_relationships": relationships,
-                "analysis_timestamp": datetime.now(timezone.utc).isoformat()
+                "analysis_timestamp": datetime.now(UTC).isoformat()
             }
             
         except Exception as e:
             return {"success": False, "error": str(e)}
     
-    async def _detect_breaking_changes(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _detect_breaking_changes(self, task: dict[str, Any]) -> dict[str, Any]:
         """Detect breaking changes in code modifications."""
         try:
             repository = task.get("repository")
@@ -549,13 +545,13 @@ class ImpactMapperAgent(BaseAgent):
                 "breaking_changes_detected": len(breaking_changes),
                 "breaking_changes": breaking_changes,
                 "categorized_changes": categorized_changes,
-                "analysis_timestamp": datetime.now(timezone.utc).isoformat()
+                "analysis_timestamp": datetime.now(UTC).isoformat()
             }
             
         except Exception as e:
             return {"success": False, "error": str(e)}
     
-    async def _generate_impact_report(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _generate_impact_report(self, task: dict[str, Any]) -> dict[str, Any]:
         """Generate comprehensive impact analysis report."""
         try:
             analysis_id = task.get("analysis_id")
@@ -607,13 +603,13 @@ class ImpactMapperAgent(BaseAgent):
             return {
                 "success": True,
                 "report": report,
-                "generated_at": datetime.now(timezone.utc).isoformat()
+                "generated_at": datetime.now(UTC).isoformat()
             }
             
         except Exception as e:
             return {"success": False, "error": str(e)}
     
-    async def _validate_compatibility(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _validate_compatibility(self, task: dict[str, Any]) -> dict[str, Any]:
         """Validate compatibility between repository versions."""
         try:
             source_repo = task.get("source_repository")
@@ -671,13 +667,13 @@ class ImpactMapperAgent(BaseAgent):
                 "compatibility_status": "compatible" if compatibility_score >= 0.9 else 
                                      "mostly_compatible" if compatibility_score >= 0.7 else
                                      "incompatible",
-                "analysis_timestamp": datetime.now(timezone.utc).isoformat()
+                "analysis_timestamp": datetime.now(UTC).isoformat()
             }
             
         except Exception as e:
             return {"success": False, "error": str(e)}
     
-    async def _suggest_coordination_tasks(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _suggest_coordination_tasks(self, task: dict[str, Any]) -> dict[str, Any]:
         """Suggest coordination tasks based on impact analysis."""
         try:
             impact_analysis = task.get("impact_analysis")
@@ -744,7 +740,7 @@ class ImpactMapperAgent(BaseAgent):
                 "total_tasks": len(coordination_tasks),
                 "critical_tasks": len([t for t in coordination_tasks if t["priority"] == "critical"]),
                 "high_priority_tasks": len([t for t in coordination_tasks if t["priority"] == "high"]),
-                "suggested_at": datetime.now(timezone.utc).isoformat()
+                "suggested_at": datetime.now(UTC).isoformat()
             }
             
         except Exception as e:
@@ -754,7 +750,7 @@ class ImpactMapperAgent(BaseAgent):
     # HELPER AND UTILITY METHODS
     # ================================
     
-    async def _discover_related_repositories(self, source_repo: str) -> List[str]:
+    async def _discover_related_repositories(self, source_repo: str) -> list[str]:
         """Discover repositories potentially related to the source repository."""
         related_repos = set()
         
@@ -790,7 +786,7 @@ class ImpactMapperAgent(BaseAgent):
             self.logger.error(f"Error discovering related repositories: {e}")
             return []
     
-    def _extract_repo_name_from_path(self, path: str) -> Optional[str]:
+    def _extract_repo_name_from_path(self, path: str) -> str | None:
         """Extract repository name from file path."""
         try:
             parts = path.split('/')
@@ -807,7 +803,7 @@ class ImpactMapperAgent(BaseAgent):
         except:
             return None
     
-    async def _get_repository_path(self, repository: str) -> Optional[str]:
+    async def _get_repository_path(self, repository: str) -> str | None:
         """Get the file system path for a repository."""
         try:
             # Try to get from vector database metadata
@@ -845,7 +841,7 @@ class ImpactMapperAgent(BaseAgent):
             self.logger.error(f"Error getting repository path: {e}")
             return None
     
-    def _extract_python_apis(self, content: str, file_path: str) -> List[Dict[str, Any]]:
+    def _extract_python_apis(self, content: str, file_path: str) -> list[dict[str, Any]]:
         """Extract Python API definitions from code content."""
         apis = []
         
@@ -912,7 +908,7 @@ class ImpactMapperAgent(BaseAgent):
         except Exception:
             return f"{node.name}(...)"
     
-    def _extract_javascript_apis(self, content: str, file_path: str) -> List[Dict[str, Any]]:
+    def _extract_javascript_apis(self, content: str, file_path: str) -> list[dict[str, Any]]:
         """Extract JavaScript API definitions from code content."""
         apis = []
         
@@ -946,7 +942,7 @@ class ImpactMapperAgent(BaseAgent):
         
         return apis
     
-    def _parse_requirements_txt(self, content: str) -> Dict[str, str]:
+    def _parse_requirements_txt(self, content: str) -> dict[str, str]:
         """Parse requirements.txt content and extract dependencies."""
         dependencies = {}
         
@@ -973,7 +969,7 @@ class ImpactMapperAgent(BaseAgent):
         
         return dependencies
     
-    def _parse_package_json(self, content: str) -> Dict[str, Dict[str, str]]:
+    def _parse_package_json(self, content: str) -> dict[str, dict[str, str]]:
         """Parse package.json content and extract dependencies."""
         try:
             package_data = json.loads(content)
@@ -986,7 +982,7 @@ class ImpactMapperAgent(BaseAgent):
             self.logger.error(f"Error parsing package.json: {e}")
             return {"dependencies": {}, "devDependencies": {}, "peerDependencies": {}}
     
-    def _detect_breaking_changes_in_content(self, content: str, file_path: str) -> List[Dict[str, Any]]:
+    def _detect_breaking_changes_in_content(self, content: str, file_path: str) -> list[dict[str, Any]]:
         """Detect breaking changes in file content."""
         breaking_changes = []
         
@@ -1016,19 +1012,19 @@ class ImpactMapperAgent(BaseAgent):
     # STATUS AND UTILITY METHODS
     # ================================
     
-    def _update_state(self, status: str, task_id: Optional[str] = None, error: Optional[str] = None) -> None:
+    def _update_state(self, status: str, task_id: str | None = None, error: str | None = None) -> None:
         """Update agent state."""
         state = AgentState(
             agent_id=self.agent_id,
             status=status,
             current_task=task_id,
-            last_heartbeat=datetime.now(timezone.utc),
+            last_heartbeat=datetime.now(UTC),
             metadata={"error": error if error else None}
         )
         self.shared_memory.update_agent_state(state)
     
-    def get_capabilities(self) -> List[str]:
+    def get_capabilities(self) -> list[str]:
         return ["impact_analysis"]
     
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {"agent_id": self.agent_id, "type": "impact_mapper"}

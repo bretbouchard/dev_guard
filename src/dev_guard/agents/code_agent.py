@@ -5,15 +5,13 @@ import asyncio
 import json
 import logging
 import os
-import tempfile
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
 import uuid
-import subprocess
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
-from .base_agent import BaseAgent
 from ..memory.shared_memory import MemoryEntry
+from .base_agent import BaseAgent
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +24,7 @@ class CodeAgent(BaseAgent):
         config,  # Config type causes circular import
         shared_memory,  # SharedMemory type
         vector_db,  # VectorDatabase type
-        working_directory: Optional[str] = None
+        working_directory: str | None = None
     ):
         """Initialize the Code Agent with Goose CLI configuration."""
         super().__init__(agent_id, config, shared_memory, vector_db)
@@ -95,7 +93,7 @@ class CodeAgent(BaseAgent):
                 "agent": "code_agent"
             }
 
-    async def _execute_code_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _execute_code_task(self, task: dict[str, Any]) -> dict[str, Any]:
         """Execute a specific code task using appropriate Goose commands."""
         task_type = task.get("type", "generate")
         
@@ -133,9 +131,9 @@ class CodeAgent(BaseAgent):
     async def generate_code(
         self,
         prompt: str,
-        file_path: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        file_path: str | None = None,
+        context: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Generate code using Goose CLI with automatic quality checks and pattern matching."""
         try:
             # Step 1: Search for similar patterns to inform code generation
@@ -191,8 +189,8 @@ class CodeAgent(BaseAgent):
         self,
         file_path: str,
         error_description: str,
-        context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        context: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Fix code issues using Goose CLI with automatic quality checks."""
         fix_prompt = f"Fix the following issue in {file_path}: {error_description}"
         
@@ -220,8 +218,8 @@ class CodeAgent(BaseAgent):
     async def write_tests(
         self,
         file_path: str,
-        context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        context: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Generate tests for code using Goose CLI with quality checks."""
         test_prompt = f"Write comprehensive tests for the code in {file_path}"
         
@@ -248,8 +246,8 @@ class CodeAgent(BaseAgent):
         self,
         file_path: str,
         refactor_description: str,
-        context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        context: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Refactor code using Goose CLI with AST analysis and quality checks."""
         try:
             # Step 1: Analyze current code structure
@@ -306,9 +304,9 @@ class CodeAgent(BaseAgent):
     async def run_goose_session(
         self,
         prompt: str,
-        file_path: Optional[str] = None,
-        goose_args: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
+        file_path: str | None = None,
+        goose_args: list[str] | None = None
+    ) -> dict[str, Any]:
         """Run a generic Goose CLI session."""
         args = ["session", "start"]
         
@@ -330,10 +328,10 @@ class CodeAgent(BaseAgent):
 
     async def _run_goose_command(
         self,
-        args: List[str],
-        input_text: Optional[str] = None,
-        cwd: Optional[str] = None
-    ) -> Dict[str, Any]:
+        args: list[str],
+        input_text: str | None = None,
+        cwd: str | None = None
+    ) -> dict[str, Any]:
         """Execute a Goose CLI command with proper error handling and enhanced metadata capture."""
         try:
             # Prepare the full command
@@ -341,7 +339,7 @@ class CodeAgent(BaseAgent):
             working_dir = cwd or self.working_directory
             
             # Capture start time for performance tracking
-            start_time = datetime.now(timezone.utc)
+            start_time = datetime.now(UTC)
             
             # Execute the command
             process = await asyncio.create_subprocess_exec(
@@ -357,7 +355,7 @@ class CodeAgent(BaseAgent):
                 input=input_text.encode() if input_text else None
             )
             
-            end_time = datetime.now(timezone.utc)
+            end_time = datetime.now(UTC)
             execution_duration = (end_time - start_time).total_seconds()
             
             # Generate session ID if not exists
@@ -398,7 +396,7 @@ class CodeAgent(BaseAgent):
             
         except Exception as e:
             self.logger.error(f"Error running Goose command: {e}")
-            end_time = datetime.now(timezone.utc) if 'start_time' in locals() else datetime.now(timezone.utc)
+            end_time = datetime.now(UTC) if 'start_time' in locals() else datetime.now(UTC)
             start_time = locals().get('start_time', end_time)
             execution_duration = (end_time - start_time).total_seconds()
             
@@ -431,7 +429,7 @@ class CodeAgent(BaseAgent):
                 }
             }
 
-    def _parse_state_for_task(self, state: Any) -> Optional[Dict[str, Any]]:
+    def _parse_state_for_task(self, state: Any) -> dict[str, Any] | None:
         """Parse state to extract code task information."""
         if isinstance(state, str):
             return {
@@ -449,7 +447,7 @@ class CodeAgent(BaseAgent):
         else:
             return None
 
-    async def _log_goose_result(self, task: Dict[str, Any], result: Dict[str, Any]):
+    async def _log_goose_result(self, task: dict[str, Any], result: dict[str, Any]):
         """Log Goose execution results to shared memory with enhanced tool call format."""
         try:
             # Extract enhanced tool call information
@@ -518,7 +516,7 @@ class CodeAgent(BaseAgent):
         except Exception as e:
             self.logger.error(f"Error logging enhanced Goose result: {e}")
 
-    async def analyze_code_structure(self, file_path: str) -> Dict[str, Any]:
+    async def analyze_code_structure(self, file_path: str) -> dict[str, Any]:
         """Analyze the AST structure of a Python file."""
         try:
             if not Path(file_path).exists():
@@ -527,7 +525,7 @@ class CodeAgent(BaseAgent):
                     "error": f"File does not exist: {file_path}"
                 }
             
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, encoding='utf-8') as f:
                 source_code = f.read()
             
             try:
@@ -607,7 +605,7 @@ class CodeAgent(BaseAgent):
         else:
             return "unknown"
     
-    def _extract_return_annotation(self, func_node) -> Optional[str]:
+    def _extract_return_annotation(self, func_node) -> str | None:
         """Extract return type annotation from function node."""
         if func_node.returns:
             if isinstance(func_node.returns, ast.Name):
@@ -618,7 +616,7 @@ class CodeAgent(BaseAgent):
                 return "complex_annotation"
         return None
     
-    def _extract_import_info(self, import_node) -> Dict[str, str]:
+    def _extract_import_info(self, import_node) -> dict[str, str]:
         """Extract import information from AST node."""
         if isinstance(import_node, ast.Import):
             return {
@@ -639,15 +637,13 @@ class CodeAgent(BaseAgent):
         """Calculate cyclomatic complexity of the code."""
         complexity = 1  # Base complexity
         for node in ast.walk(tree):
-            if isinstance(node, (ast.If, ast.While, ast.For, ast.With)):
-                complexity += 1
-            elif isinstance(node, ast.ExceptHandler):
+            if isinstance(node, (ast.If, ast.While, ast.For, ast.With)) or isinstance(node, ast.ExceptHandler):
                 complexity += 1
             elif isinstance(node, ast.BoolOp):
                 complexity += len(node.values) - 1
         return complexity
 
-    async def search_similar_patterns(self, query: str, file_path: Optional[str] = None) -> Dict[str, Any]:
+    async def search_similar_patterns(self, query: str, file_path: str | None = None) -> dict[str, Any]:
         """Search for similar code patterns using Goose memory and AST analysis."""
         try:
             results = {
@@ -694,7 +690,7 @@ class CodeAgent(BaseAgent):
                 "error": str(e)
             }
 
-    async def _search_goose_memory(self, query: str, file_path: Optional[str] = None) -> Dict[str, Any]:
+    async def _search_goose_memory(self, query: str, file_path: str | None = None) -> dict[str, Any]:
         """Search Goose memory for similar patterns using Goose CLI."""
         try:
             # Use Goose CLI to search memory with a lookup command
@@ -720,7 +716,7 @@ class CodeAgent(BaseAgent):
             logger.error(f"Error in Goose memory search: {e}")
             return {"success": False, "error": str(e)}
 
-    async def _search_vector_db(self, query: str, file_path: Optional[str] = None) -> Dict[str, Any]:
+    async def _search_vector_db(self, query: str, file_path: str | None = None) -> dict[str, Any]:
         """Search vector database for similar code patterns."""
         try:
             # Use the vector database to find similar code
@@ -749,7 +745,7 @@ class CodeAgent(BaseAgent):
             logger.error(f"Error in vector DB search: {e}")
             return {"success": False, "error": str(e)}
 
-    async def _search_ast_similar(self, file_path: str, query: str) -> Dict[str, Any]:
+    async def _search_ast_similar(self, file_path: str, query: str) -> dict[str, Any]:
         """Find AST-structurally similar code patterns."""
         try:
             # Analyze the target file structure
@@ -791,7 +787,7 @@ class CodeAgent(BaseAgent):
             logger.error(f"Error in AST similarity search: {e}")
             return {"success": False, "error": str(e)}
 
-    def _parse_goose_memory_response(self, output: str) -> List[Dict[str, Any]]:
+    def _parse_goose_memory_response(self, output: str) -> list[dict[str, Any]]:
         """Parse Goose CLI memory search response."""
         matches = []
         try:
@@ -823,7 +819,7 @@ class CodeAgent(BaseAgent):
         
         return matches
 
-    def _build_structure_query(self, structure: Dict[str, Any]) -> str:
+    def _build_structure_query(self, structure: dict[str, Any]) -> str:
         """Build a search query based on code structure."""
         query_parts = []
         
@@ -846,7 +842,7 @@ class CodeAgent(BaseAgent):
         
         return " ".join(query_parts[:10])  # Limit query size
 
-    def _calculate_structural_similarity(self, struct1: Dict[str, Any], struct2: Dict[str, Any]) -> float:
+    def _calculate_structural_similarity(self, struct1: dict[str, Any], struct2: dict[str, Any]) -> float:
         """Calculate structural similarity between two code structures."""
         try:
             score = 0.0
@@ -891,7 +887,7 @@ class CodeAgent(BaseAgent):
             logger.error(f"Error calculating structural similarity: {e}")
             return 0.0
 
-    def _generate_pattern_recommendations(self, goose_matches: List[Dict], vector_matches: List[Dict], ast_matches: List[Dict]) -> List[Dict[str, Any]]:
+    def _generate_pattern_recommendations(self, goose_matches: list[dict], vector_matches: list[dict], ast_matches: list[dict]) -> list[dict[str, Any]]:
         """Generate recommended patterns based on all search results."""
         recommendations = []
         
@@ -936,7 +932,7 @@ class CodeAgent(BaseAgent):
             logger.error(f"Error generating pattern recommendations: {e}")
             return []
 
-    def _build_pattern_context(self, patterns: List[Dict[str, Any]]) -> str:
+    def _build_pattern_context(self, patterns: list[dict[str, Any]]) -> str:
         """Build context string from recommended patterns."""
         if not patterns:
             return ""
@@ -956,7 +952,7 @@ Reason: {reason}
         
         return "\n".join(context_parts)
 
-    def _analyze_refactoring_impact(self, structure_before: Dict[str, Any], structure_after: Dict[str, Any]) -> Dict[str, Any]:
+    def _analyze_refactoring_impact(self, structure_before: dict[str, Any], structure_after: dict[str, Any]) -> dict[str, Any]:
         """Analyze the impact of refactoring by comparing code structures."""
         if not structure_before.get("success") or not structure_after.get("success"):
             return {"success": False, "error": "Could not analyze structures"}
@@ -992,7 +988,7 @@ Reason: {reason}
             logger.error(f"Error analyzing refactoring impact: {e}")
             return {"success": False, "error": str(e)}
 
-    async def format_code(self, file_path: str) -> Dict[str, Any]:
+    async def format_code(self, file_path: str) -> dict[str, Any]:
         """Format code using black and isort."""
         try:
             file_path_obj = Path(file_path)
@@ -1034,7 +1030,7 @@ Reason: {reason}
                 "error": str(e)
             }
 
-    async def lint_code(self, file_path: str) -> Dict[str, Any]:
+    async def lint_code(self, file_path: str) -> dict[str, Any]:
         """Lint code using ruff and mypy."""
         try:
             file_path_obj = Path(file_path)
@@ -1076,7 +1072,7 @@ Reason: {reason}
                 "error": str(e)
             }
 
-    async def quality_check_and_format(self, file_path: str, auto_fix: bool = True) -> Dict[str, Any]:
+    async def quality_check_and_format(self, file_path: str, auto_fix: bool = True) -> dict[str, Any]:
         """Run complete quality check and formatting pipeline."""
         try:
             results = {
@@ -1124,7 +1120,7 @@ Reason: {reason}
                 "error": str(e)
             }
 
-    async def _run_black(self, file_path: str) -> Dict[str, Any]:
+    async def _run_black(self, file_path: str) -> dict[str, Any]:
         """Run black formatter on a file."""
         try:
             cmd = ["python", "-m", "black", file_path]
@@ -1138,7 +1134,7 @@ Reason: {reason}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _run_isort(self, file_path: str) -> Dict[str, Any]:
+    async def _run_isort(self, file_path: str) -> dict[str, Any]:
         """Run isort import sorting on a file."""
         try:
             cmd = ["python", "-m", "isort", file_path]
@@ -1152,7 +1148,7 @@ Reason: {reason}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _run_ruff(self, file_path: str) -> Dict[str, Any]:
+    async def _run_ruff(self, file_path: str) -> dict[str, Any]:
         """Run ruff linting on a file."""
         try:
             cmd = ["python", "-m", "ruff", "check", file_path, "--output-format=json"]
@@ -1183,7 +1179,7 @@ Reason: {reason}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _run_mypy(self, file_path: str) -> Dict[str, Any]:
+    async def _run_mypy(self, file_path: str) -> dict[str, Any]:
         """Run mypy type checking on a file."""
         try:
             cmd = ["python", "-m", "mypy", file_path, "--show-column-numbers", "--show-error-codes"]
@@ -1212,7 +1208,7 @@ Reason: {reason}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _auto_fix_issues(self, file_path: str, issues: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def _auto_fix_issues(self, file_path: str, issues: list[dict[str, Any]]) -> dict[str, Any]:
         """Attempt to auto-fix common code issues."""
         try:
             fixes_applied = []
@@ -1241,7 +1237,7 @@ Reason: {reason}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _run_command_simple(self, cmd: List[str]) -> Dict[str, Any]:
+    async def _run_command_simple(self, cmd: list[str]) -> dict[str, Any]:
         """Run a simple command and return result."""
         try:
             process = await asyncio.create_subprocess_exec(
@@ -1265,7 +1261,7 @@ Reason: {reason}
                 "stderr": str(e)
             }
 
-    def get_capabilities(self) -> List[str]:
+    def get_capabilities(self) -> list[str]:
         """Return the capabilities of the Code Agent."""
         return [
             "code_generation",

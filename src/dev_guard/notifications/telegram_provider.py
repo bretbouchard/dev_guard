@@ -1,16 +1,10 @@
 """Telegram notification provider."""
 
 import logging
-from typing import List, Optional
 
 import aiohttp
 
-from .base import (
-    NotificationLevel,
-    NotificationMessage,
-    NotificationProvider,
-    NotificationResult
-)
+from .base import NotificationLevel, NotificationMessage, NotificationProvider, NotificationResult
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +17,7 @@ class TelegramProvider(NotificationProvider):
         bot_token: str,
         chat_id: str,
         parse_mode: str = "Markdown",
-        supported_levels: Optional[List[NotificationLevel]] = None,
+        supported_levels: list[NotificationLevel] | None = None,
         enabled: bool = True
     ):
         """Initialize Telegram provider.
@@ -169,7 +163,7 @@ class TelegramProvider(NotificationProvider):
                 f"**Source:** {message.source}",
                 f"**Time:** {message.timestamp.strftime('%Y-%m-%d %H:%M:%S')}",
                 "",
-                f"**Message:**",
+                "**Message:**",
                 message.content,
             ]
             
@@ -201,7 +195,7 @@ class TelegramProvider(NotificationProvider):
                 f"<b>Source:</b> {message.source}",
                 f"<b>Time:</b> {message.timestamp.strftime('%Y-%m-%d %H:%M:%S')}",
                 "",
-                f"<b>Message:</b>",
+                "<b>Message:</b>",
                 message.content,
             ]
             
@@ -233,7 +227,7 @@ class TelegramProvider(NotificationProvider):
                 f"Source: {message.source}",
                 f"Time: {message.timestamp.strftime('%Y-%m-%d %H:%M:%S')}",
                 "",
-                f"Message:",
+                "Message:",
                 message.content,
             ]
             

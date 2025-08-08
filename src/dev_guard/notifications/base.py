@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -26,9 +26,9 @@ class NotificationMessage(BaseModel):
     level: NotificationLevel = Field(..., description="Notification level")
     timestamp: datetime = Field(default_factory=datetime.now)
     source: str = Field(..., description="Source agent or system")
-    tags: List[str] = Field(default_factory=list)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    template_name: Optional[str] = Field(None, description="Template used")
+    tags: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    template_name: str | None = Field(None, description="Template used")
 
 
 class NotificationResult(BaseModel):
@@ -36,8 +36,8 @@ class NotificationResult(BaseModel):
     
     success: bool
     provider: str
-    message_id: Optional[str] = None
-    error: Optional[str] = None
+    message_id: str | None = None
+    error: str | None = None
     timestamp: datetime = Field(default_factory=datetime.now)
 
 
@@ -103,10 +103,10 @@ class NotificationProvider(ABC):
 class NotificationFilter(BaseModel):
     """Filter for controlling which notifications are sent."""
     
-    levels: List[NotificationLevel] = Field(default_factory=list)
-    sources: List[str] = Field(default_factory=list)
-    tags: List[str] = Field(default_factory=list)
-    exclude_tags: List[str] = Field(default_factory=list)
+    levels: list[NotificationLevel] = Field(default_factory=list)
+    sources: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    exclude_tags: list[str] = Field(default_factory=list)
     
     def matches(self, message: NotificationMessage) -> bool:
         """Check if message matches filter criteria.

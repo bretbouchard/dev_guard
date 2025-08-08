@@ -1,21 +1,17 @@
 """QA Test agent for DevGuard - handles testing and quality assurance tasks."""
 
-import asyncio
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
-import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
+from ..memory.shared_memory import AgentState
 from .base_agent import BaseAgent
-from ..core.config import Config
-from ..memory.shared_memory import SharedMemory, TaskStatus, AgentState
-from ..memory.vector_db import VectorDatabase
-from ..llm.provider import LLMProvider
 
 logger = logging.getLogger(__name__)
 
@@ -71,13 +67,12 @@ class QATestAgent(BaseAgent):
         
         return await self.execute_task(task)
     
-    def _find_goose_executable(self) -> Optional[str]:
+    def _find_goose_executable(self) -> str | None:
         """Find Goose CLI executable in the system."""
-        import shutil
         return shutil.which("goose")
     
-    async def _run_goose_command(self, args: List[str], input_text: Optional[str] = None, 
-                                 cwd: Optional[str] = None) -> Dict[str, Any]:
+    async def _run_goose_command(self, args: list[str], input_text: str | None = None, 
+                                 cwd: str | None = None) -> dict[str, Any]:
         """Run a Goose CLI command with enhanced logging."""
         if not self.goose_path:
             return {
@@ -88,7 +83,7 @@ class QATestAgent(BaseAgent):
             }
         
         try:
-            start_time = datetime.now(timezone.utc)
+            start_time = datetime.now(UTC)
             cmd = [self.goose_path] + args
             working_dir = cwd or self.working_directory or os.getcwd()
             
@@ -102,7 +97,7 @@ class QATestAgent(BaseAgent):
                 timeout=300  # 5 minute timeout
             )
             
-            end_time = datetime.now(timezone.utc)
+            end_time = datetime.now(UTC)
             duration = (end_time - start_time).total_seconds()
             
             return {
@@ -132,7 +127,7 @@ class QATestAgent(BaseAgent):
                 "return_code": -1
             }
     
-    async def execute_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_task(self, task: dict[str, Any]) -> dict[str, Any]:
         """
         Execute a QA/testing task.
         
@@ -203,7 +198,7 @@ class QATestAgent(BaseAgent):
                 "test_results": {}
             }
     
-    async def _run_tests(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _run_tests(self, task: dict[str, Any]) -> dict[str, Any]:
         """Run automated tests with comprehensive analysis and reporting."""
         try:
             test_path = task.get("test_path", "tests/")
@@ -266,7 +261,7 @@ class QATestAgent(BaseAgent):
             }
     
     async def _execute_test_suite(self, test_path: str, framework: str, 
-                                  pattern: str, include_coverage: bool) -> Dict[str, Any]:
+                                  pattern: str, include_coverage: bool) -> dict[str, Any]:
         """Execute test suite with the specified framework."""
         try:
             # Build test command based on framework
@@ -281,9 +276,9 @@ class QATestAgent(BaseAgent):
                 cmd = ["python", "-m", "pytest", test_path, "-v"]
             
             # Execute tests with timeout
-            start_time = datetime.now(timezone.utc)
+            start_time = datetime.now(UTC)
             result = await self._run_command(cmd, timeout=600)  # 10 minute timeout
-            end_time = datetime.now(timezone.utc)
+            end_time = datetime.now(UTC)
             
             # Parse test results
             test_results = self._parse_test_output(result["output"], framework)
@@ -305,13 +300,13 @@ class QATestAgent(BaseAgent):
                 "test_results": {}
             }
     
-    async def _detailed_coverage_analysis(self, test_path: str) -> Dict[str, Any]:
+    async def _detailed_coverage_analysis(self, test_path: str) -> dict[str, Any]:
         """Perform detailed coverage analysis with recommendations."""
         try:
             # Read coverage JSON report if available
             coverage_file = Path("coverage.json")
             if coverage_file.exists():
-                with open(coverage_file, 'r') as f:
+                with open(coverage_file) as f:
                     coverage_data = json.loads(f.read())
                 
                 analysis = {
@@ -371,7 +366,7 @@ class QATestAgent(BaseAgent):
                 "analysis": {}
             }
     
-    async def _analyze_test_performance(self, test_result: Dict[str, Any]) -> Dict[str, Any]:
+    async def _analyze_test_performance(self, test_result: dict[str, Any]) -> dict[str, Any]:
         """Analyze test execution performance."""
         try:
             execution_time = test_result.get("execution_time", 0)
@@ -427,7 +422,7 @@ class QATestAgent(BaseAgent):
                 "performance": {}
             }
     
-    async def _assess_test_quality(self, test_path: str) -> Dict[str, Any]:
+    async def _assess_test_quality(self, test_path: str) -> dict[str, Any]:
         """Assess the quality of the test suite."""
         try:
             quality_assessment = {
@@ -455,7 +450,7 @@ class QATestAgent(BaseAgent):
             
             for test_file in test_files:
                 try:
-                    with open(test_file, 'r', encoding='utf-8') as f:
+                    with open(test_file, encoding='utf-8') as f:
                         content = f.read()
                     
                     # Count test functions
@@ -535,7 +530,7 @@ class QATestAgent(BaseAgent):
                 "quality": {}
             }
     
-    def _generate_test_summary(self, execution_results: Dict[str, Any]) -> Dict[str, Any]:
+    def _generate_test_summary(self, execution_results: dict[str, Any]) -> dict[str, Any]:
         """Generate comprehensive test execution summary."""
         try:
             test_exec = execution_results.get("test_execution", {})
@@ -599,7 +594,7 @@ class QATestAgent(BaseAgent):
                 "recommendations": ["Fix test execution issues"]
             }
     
-    def get_capabilities(self) -> List[str]:
+    def get_capabilities(self) -> list[str]:
         """Get QA Test agent capabilities."""
         return [
             "automated_testing",
@@ -630,7 +625,7 @@ class QATestAgent(BaseAgent):
             "intelligent_bug_fixing"
         ]
     
-    async def _generate_tests(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _generate_tests(self, task: dict[str, Any]) -> dict[str, Any]:
         """Generate tests for specified code using Goose CLI."""
         try:
             target_file = task.get("target_file", "")
@@ -657,7 +652,7 @@ class QATestAgent(BaseAgent):
                     self.logger.warning(f"Goose test generation failed: {result.get('error')}")
             
             # Fallback to LLM or template generation
-            with open(target_path, 'r', encoding='utf-8') as f:
+            with open(target_path, encoding='utf-8') as f:
                 code_content = f.read()
             
             if self.llm_provider:
@@ -688,7 +683,7 @@ class QATestAgent(BaseAgent):
                 "error": str(e)
             }
     
-    async def _generate_tests_with_goose(self, target_file: str, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _generate_tests_with_goose(self, target_file: str, task: dict[str, Any]) -> dict[str, Any]:
         """Generate comprehensive tests using Goose CLI."""
         try:
             # Start a Goose session focused on test generation
@@ -780,7 +775,7 @@ Please create well-structured, maintainable test code that follows Python testin
 
         return base_prompt
     
-    async def _validate_generated_tests(self, test_file: str, target_file: str) -> Dict[str, Any]:
+    async def _validate_generated_tests(self, test_file: str, target_file: str) -> dict[str, Any]:
         """Validate the quality and completeness of generated tests."""
         try:
             validation_results = {
@@ -794,7 +789,7 @@ Please create well-structured, maintainable test code that follows Python testin
             }
             
             # Check syntax validity
-            with open(test_file, 'r', encoding='utf-8') as f:
+            with open(test_file, encoding='utf-8') as f:
                 test_content = f.read()
             
             try:
@@ -853,7 +848,7 @@ Please create well-structured, maintainable test code that follows Python testin
             self.logger.error(f"Error validating tests: {e}")
             return {"syntax_valid": False, "quality_score": 0}
     
-    def _extract_test_code_from_output(self, goose_output: str) -> Optional[str]:
+    def _extract_test_code_from_output(self, goose_output: str) -> str | None:
         """Extract Python test code from Goose CLI output."""
         try:
             # Look for Python code blocks in the output
@@ -883,7 +878,7 @@ Please create well-structured, maintainable test code that follows Python testin
             self.logger.error(f"Error extracting test code: {e}")
             return None
     
-    async def _analyze_coverage(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _analyze_coverage(self, task: dict[str, Any]) -> dict[str, Any]:
         """Analyze test coverage."""
         try:
             source_path = task.get("source_path", "src/")
@@ -940,7 +935,7 @@ Please create well-structured, maintainable test code that follows Python testin
                 "coverage_report": {}
             }
     
-    async def _quality_check(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _quality_check(self, task: dict[str, Any]) -> dict[str, Any]:
         """Perform code quality checks."""
         try:
             target_path = task.get("target_path", "src/")
@@ -997,7 +992,7 @@ Please create well-structured, maintainable test code that follows Python testin
                 "quality_results": {}
             }
     
-    async def _security_scan(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _security_scan(self, task: dict[str, Any]) -> dict[str, Any]:
         """Perform security vulnerability scanning."""
         try:
             target_path = task.get("target_path", ".")
@@ -1016,7 +1011,7 @@ Please create well-structured, maintainable test code that follows Python testin
             python_files = list(Path(target_path).rglob("*.py"))
             for file_path in python_files:
                 try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
+                    with open(file_path, encoding='utf-8') as f:
                         content = f.read()
                         issues = self._check_security_patterns(content, str(file_path))
                         security_issues.extend(issues)
@@ -1053,7 +1048,7 @@ Please create well-structured, maintainable test code that follows Python testin
                 "security_results": {}
             }
     
-    async def _performance_test(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _performance_test(self, task: dict[str, Any]) -> dict[str, Any]:
         """Run performance tests."""
         try:
             # Simple performance testing placeholder
@@ -1082,7 +1077,7 @@ Please create well-structured, maintainable test code that follows Python testin
                 "performance_results": {}
             }
     
-    async def _generic_qa_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _generic_qa_task(self, task: dict[str, Any]) -> dict[str, Any]:
         """Handle generic QA tasks."""
         try:
             description = task.get("description", "")
@@ -1188,7 +1183,7 @@ if __name__ == "__main__":
         
         return test_file
     
-    async def _run_command(self, cmd: List[str]) -> Dict[str, Any]:
+    async def _run_command(self, cmd: list[str]) -> dict[str, Any]:
         """Run a command and return results."""
         try:
             start_time = datetime.now()
@@ -1225,7 +1220,7 @@ if __name__ == "__main__":
                 "execution_time": 0
             }
     
-    def _parse_test_output(self, output: str, framework: str) -> Dict[str, Any]:
+    def _parse_test_output(self, output: str, framework: str) -> dict[str, Any]:
         """Parse test framework output."""
         results = {
             "total_tests": 0,
@@ -1268,7 +1263,7 @@ if __name__ == "__main__":
         
         return results
     
-    def _parse_coverage_output(self, output: str) -> Dict[str, Any]:
+    def _parse_coverage_output(self, output: str) -> dict[str, Any]:
         """Parse coverage output."""
         coverage_data = {
             "total_coverage": 0,
@@ -1290,7 +1285,7 @@ if __name__ == "__main__":
         
         return coverage_data
     
-    async def _run_lint_check(self, target_path: str) -> Dict[str, Any]:
+    async def _run_lint_check(self, target_path: str) -> dict[str, Any]:
         """Run linting check."""
         try:
             # Try to run flake8 or pylint
@@ -1320,7 +1315,7 @@ if __name__ == "__main__":
                 "issues": [{"type": "lint", "message": f"Lint check error: {e}", "severity": "error"}]
             }
     
-    async def _run_style_check(self, target_path: str) -> Dict[str, Any]:
+    async def _run_style_check(self, target_path: str) -> dict[str, Any]:
         """Run style check."""
         try:
             # Simple style check - could be expanded
@@ -1330,7 +1325,7 @@ if __name__ == "__main__":
             python_files = list(Path(target_path).rglob("*.py"))
             for file_path in python_files[:10]:  # Limit to first 10 files
                 try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
+                    with open(file_path, encoding='utf-8') as f:
                         content = f.read()
                         file_issues = self._check_style_patterns(content, str(file_path))
                         issues.extend(file_issues)
@@ -1348,7 +1343,7 @@ if __name__ == "__main__":
                 "issues": [{"type": "style", "message": f"Style check error: {e}", "severity": "error"}]
             }
     
-    def _check_style_patterns(self, content: str, file_path: str) -> List[Dict[str, Any]]:
+    def _check_style_patterns(self, content: str, file_path: str) -> list[dict[str, Any]]:
         """Check for basic style issues."""
         issues = []
         lines = content.split('\n')
@@ -1372,7 +1367,7 @@ if __name__ == "__main__":
         
         return issues
     
-    def _check_security_patterns(self, content: str, file_path: str) -> List[Dict[str, Any]]:
+    def _check_security_patterns(self, content: str, file_path: str) -> list[dict[str, Any]]:
         """Check for basic security issues."""
         issues = []
         
@@ -1395,20 +1390,20 @@ if __name__ == "__main__":
         
         return issues
     
-    def _update_state(self, status: str, task_id: Optional[str] = None, error: Optional[str] = None) -> None:
+    def _update_state(self, status: str, task_id: str | None = None, error: str | None = None) -> None:
         """Update agent state in shared memory."""
         state = AgentState(
             agent_id=self.agent_id,
             status=status,
             current_task=task_id,
-            last_heartbeat=datetime.now(timezone.utc),
+            last_heartbeat=datetime.now(UTC),
             metadata={
                 "error": error if error else None,
                 "capabilities": ["testing", "quality_assurance", "coverage_analysis"]
             }
         )
         self.shared_memory.update_agent_state(state)
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get current agent status."""
         return {
             "agent_id": self.agent_id,
@@ -1589,7 +1584,7 @@ def no_exceptions():
     pass
 '''
 
-    async def _run_tdd_cycle(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _run_tdd_cycle(self, task: dict[str, Any]) -> dict[str, Any]:
         """Run a complete TDD (Test-Driven Development) cycle."""
         try:
             target_file = task.get("target_file", "")
@@ -1648,7 +1643,7 @@ def no_exceptions():
                 "final_state": "error"
             }
 
-    async def _tdd_red_phase(self, target_file: str, requirements: str, test_type: str) -> Dict[str, Any]:
+    async def _tdd_red_phase(self, target_file: str, requirements: str, test_type: str) -> dict[str, Any]:
         """TDD Red Phase: Write a failing test."""
         try:
             # Generate test based on requirements (should fail initially)
@@ -1700,7 +1695,7 @@ def no_exceptions():
                 "phase": "red"
             }
 
-    async def _tdd_green_phase(self, target_file: str, test_file: str) -> Dict[str, Any]:
+    async def _tdd_green_phase(self, target_file: str, test_file: str) -> dict[str, Any]:
         """TDD Green Phase: Write minimal code to make tests pass."""
         try:
             # Use Goose to generate minimal implementation
@@ -1751,7 +1746,7 @@ Follow TDD GREEN phase principles: make it work, don't make it perfect yet.
                 "phase": "green"
             }
 
-    async def _tdd_refactor_phase(self, target_file: str, test_file: str) -> Dict[str, Any]:
+    async def _tdd_refactor_phase(self, target_file: str, test_file: str) -> dict[str, Any]:
         """TDD Refactor Phase: Improve code quality while keeping tests green."""
         try:
             # Analyze current code quality
@@ -1823,7 +1818,7 @@ IMPORTANT: Do not break existing functionality. All tests must continue to pass.
                 "phase": "refactor"
             }
 
-    async def _generate_minimal_implementation(self, target_file: str, test_file: str) -> Dict[str, Any]:
+    async def _generate_minimal_implementation(self, target_file: str, test_file: str) -> dict[str, Any]:
         """Generate minimal implementation to pass tests (fallback without Goose)."""
         try:
             # Read test file to understand requirements
@@ -1837,7 +1832,7 @@ IMPORTANT: Do not break existing functionality. All tests must continue to pass.
                 classes = re.findall(r'class Test(\w+)', test_content)
                 
                 # Generate minimal stub implementation
-                implementation = f'''"""Minimal implementation generated by TDD Green phase."""
+                implementation = '''"""Minimal implementation generated by TDD Green phase."""
 
 '''
                 
@@ -1888,7 +1883,7 @@ def {clean_func}(*args, **kwargs):
                 "phase": "green"
             }
 
-    async def _suggest_refactoring_improvements(self, target_file: str) -> Dict[str, Any]:
+    async def _suggest_refactoring_improvements(self, target_file: str) -> dict[str, Any]:
         """Suggest refactoring improvements (fallback without Goose)."""
         try:
             suggestions = [
@@ -1917,7 +1912,7 @@ def {clean_func}(*args, **kwargs):
                 "phase": "refactor"
             }
 
-    async def _goose_fix_command(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _goose_fix_command(self, task: dict[str, Any]) -> dict[str, Any]:
         """Execute Goose's 'fix' command for automated bug fixing and code repair."""
         try:
             target_file = task.get("target_file", "")
@@ -2023,7 +2018,7 @@ def {clean_func}(*args, **kwargs):
                 "method": "goose_fix_failed"
             }
 
-    async def _goose_write_tests_command(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _goose_write_tests_command(self, task: dict[str, Any]) -> dict[str, Any]:
         """Execute Goose's 'write-tests' command for automated test generation."""
         try:
             target_file = task.get("target_file", "")
@@ -2156,7 +2151,7 @@ def {clean_func}(*args, **kwargs):
                 "method": "goose_write_tests_failed"
             }
 
-    async def _run_automated_qa_pipeline(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _run_automated_qa_pipeline(self, task: dict[str, Any]) -> dict[str, Any]:
         """Run a complete automated QA pipeline using Goose fix and write-tests."""
         try:
             target_files = task.get("target_files", [])
@@ -2290,7 +2285,7 @@ def {clean_func}(*args, **kwargs):
                 "method": "qa_pipeline_failed"
             }
 
-    def _extract_code_changes_from_output(self, output: str) -> List[Dict[str, Any]]:
+    def _extract_code_changes_from_output(self, output: str) -> list[dict[str, Any]]:
         """Extract code changes from Goose command output."""
         changes = []
         
@@ -2350,7 +2345,7 @@ Please ensure the tests are runnable and follow {framework} best practices.
 
         return prompt
 
-    def _find_test_file_for_target(self, target_file: str) -> Optional[str]:
+    def _find_test_file_for_target(self, target_file: str) -> str | None:
         """Find the corresponding test file for a target file."""
         target_path = Path(target_file)
         
@@ -2386,7 +2381,7 @@ Please ensure the tests are runnable and follow {framework} best practices.
         test_filename = f"test_{target_path.stem}.py"
         return str(test_dir / test_filename)
 
-    def _generate_qa_pipeline_recommendations(self, pipeline_results: Dict[str, Any]) -> List[str]:
+    def _generate_qa_pipeline_recommendations(self, pipeline_results: dict[str, Any]) -> list[str]:
         """Generate recommendations based on QA pipeline results."""
         recommendations = []
         
@@ -2421,7 +2416,7 @@ Please ensure the tests are runnable and follow {framework} best practices.
         
         return recommendations
 
-    async def _generate_behavior_driven_tests(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _generate_behavior_driven_tests(self, task: dict[str, Any]) -> dict[str, Any]:
         """Generate Behavior-Driven Development (BDD) style tests."""
         try:
             target_file = task.get("target_file", "")
@@ -2461,7 +2456,7 @@ Please ensure the tests are runnable and follow {framework} best practices.
                 "method": "bdd_generation_failed"
             }
 
-    def _create_feature_file(self, target_file: str, description: str, user_stories: List[str]) -> str:
+    def _create_feature_file(self, target_file: str, description: str, user_stories: list[str]) -> str:
         """Create a Gherkin feature file."""
         target_path = Path(target_file)
         feature_name = target_path.stem.replace("_", " ").title()
@@ -2487,7 +2482,7 @@ Please ensure the tests are runnable and follow {framework} best practices.
         
         return feature_content
 
-    def _create_step_definitions(self, target_file: str, user_stories: List[str]) -> str:
+    def _create_step_definitions(self, target_file: str, user_stories: list[str]) -> str:
         """Create BDD step definitions."""
         target_path = Path(target_file)
         module_name = target_path.stem

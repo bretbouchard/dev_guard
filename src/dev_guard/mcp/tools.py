@@ -5,18 +5,18 @@ exposing DevGuard agent capabilities to IDE integrations.
 """
 
 from __future__ import annotations
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
-from abc import ABC, abstractmethod
-import os
-import json
+
 import logging
+import os
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any
 
 from .models import MCPTool, MCPToolParameter
 
 if TYPE_CHECKING:
+    from ..agents.base_agent import BaseAgent
     from ..memory.shared_memory import SharedMemory
     from ..memory.vector_db import VectorDatabase
-    from ..agents.base_agent import BaseAgent
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +26,9 @@ class BaseMCPTool(ABC):
     
     def __init__(
         self,
-        shared_memory: Optional[SharedMemory] = None,
-        vector_db: Optional[VectorDatabase] = None,
-        agents: Optional[Dict[str, BaseAgent]] = None,
+        shared_memory: SharedMemory | None = None,
+        vector_db: VectorDatabase | None = None,
+        agents: dict[str, BaseAgent] | None = None,
     ):
         """Initialize base MCP tool."""
         self.shared_memory = shared_memory
@@ -50,12 +50,12 @@ class BaseMCPTool(ABC):
 
     @property
     @abstractmethod
-    def parameters(self) -> List[MCPToolParameter]:
+    def parameters(self) -> list[MCPToolParameter]:
         """Get tool parameters."""
         pass
 
     @abstractmethod
-    async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, params: dict[str, Any]) -> dict[str, Any]:
         """Execute the tool with given parameters."""
         pass
 
@@ -80,7 +80,7 @@ class CodeContextTool(BaseMCPTool):
         return "Get contextual information about code files and functions"
 
     @property
-    def parameters(self) -> List[MCPToolParameter]:
+    def parameters(self) -> list[MCPToolParameter]:
         return [
             MCPToolParameter(
                 name="file_path",
@@ -96,7 +96,7 @@ class CodeContextTool(BaseMCPTool):
             ),
         ]
 
-    async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, params: dict[str, Any]) -> dict[str, Any]:
         """Execute code context retrieval."""
         file_path = params.get("file_path")
         query = params.get("query", "")
@@ -110,7 +110,7 @@ class CodeContextTool(BaseMCPTool):
                 return {"error": f"File not found: {file_path}"}
 
             # Read file content
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, encoding='utf-8') as f:
                 content = f.read()
 
             result = {
@@ -203,7 +203,7 @@ class PatternSearchTool(BaseMCPTool):
         return "Search for code patterns and structures across the codebase"
 
     @property
-    def parameters(self) -> List[MCPToolParameter]:
+    def parameters(self) -> list[MCPToolParameter]:
         return [
             MCPToolParameter(
                 name="pattern",
@@ -225,7 +225,7 @@ class PatternSearchTool(BaseMCPTool):
             ),
         ]
 
-    async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, params: dict[str, Any]) -> dict[str, Any]:
         """Execute pattern search."""
         pattern = params.get("pattern")
         language = params.get("language")
@@ -303,7 +303,7 @@ class DependencyAnalysisTool(BaseMCPTool):
         return "Analyze dependencies and their relationships in a repository"
 
     @property
-    def parameters(self) -> List[MCPToolParameter]:
+    def parameters(self) -> list[MCPToolParameter]:
         return [
             MCPToolParameter(
                 name="repo_path",
@@ -313,7 +313,7 @@ class DependencyAnalysisTool(BaseMCPTool):
             ),
         ]
 
-    async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, params: dict[str, Any]) -> dict[str, Any]:
         """Execute dependency analysis."""
         repo_path = params.get("repo_path")
 
@@ -349,7 +349,7 @@ class DependencyAnalysisTool(BaseMCPTool):
             for dep_file in dependency_files:
                 file_path = os.path.join(repo_path, dep_file)
                 if os.path.exists(file_path):
-                    with open(file_path, 'r', encoding='utf-8') as f:
+                    with open(file_path, encoding='utf-8') as f:
                         content = f.read()
                     
                     dependencies[dep_file] = {
@@ -382,7 +382,7 @@ class ImpactAnalysisTool(BaseMCPTool):
         return "Analyze the potential impact of code changes"
 
     @property
-    def parameters(self) -> List[MCPToolParameter]:
+    def parameters(self) -> list[MCPToolParameter]:
         return [
             MCPToolParameter(
                 name="change_description",
@@ -398,7 +398,7 @@ class ImpactAnalysisTool(BaseMCPTool):
             ),
         ]
 
-    async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, params: dict[str, Any]) -> dict[str, Any]:
         """Execute impact analysis."""
         change_description = params.get("change_description")
         file_path = params.get("file_path")
@@ -462,7 +462,7 @@ class SecurityScanTool(BaseMCPTool):
         return "Scan for security vulnerabilities in code"
 
     @property
-    def parameters(self) -> List[MCPToolParameter]:
+    def parameters(self) -> list[MCPToolParameter]:
         return [
             MCPToolParameter(
                 name="file_path",
@@ -472,7 +472,7 @@ class SecurityScanTool(BaseMCPTool):
             ),
         ]
 
-    async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, params: dict[str, Any]) -> dict[str, Any]:
         """Execute security scan."""
         file_path = params.get("file_path")
 
@@ -493,7 +493,7 @@ class SecurityScanTool(BaseMCPTool):
             vulnerabilities = []
             
             if os.path.isfile(file_path):
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, encoding='utf-8') as f:
                     content = f.read()
                 
                 # Basic pattern matching for common issues
@@ -539,7 +539,7 @@ class RecommendationTool(BaseMCPTool):
         return "Get recommendations for code improvements and best practices"
 
     @property
-    def parameters(self) -> List[MCPToolParameter]:
+    def parameters(self) -> list[MCPToolParameter]:
         return [
             MCPToolParameter(
                 name="code_snippet",
@@ -555,7 +555,7 @@ class RecommendationTool(BaseMCPTool):
             ),
         ]
 
-    async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, params: dict[str, Any]) -> dict[str, Any]:
         """Execute code improvement suggestions."""
         code_snippet = params.get("code_snippet")
         language = params.get("language", "")

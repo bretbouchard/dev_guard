@@ -1,7 +1,6 @@
 """Notification templates and template management."""
 
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -14,13 +13,13 @@ class NotificationTemplate(BaseModel):
     name: str = Field(..., description="Template name")
     title_template: str = Field(..., description="Title template")
     content_template: str = Field(..., description="Content template")
-    level: Optional[NotificationLevel] = Field(None, description="Default level")
-    tags: List[str] = Field(default_factory=list)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    level: NotificationLevel | None = Field(None, description="Default level")
+    tags: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     
     def render(
         self, 
-        context: Dict[str, Any], 
+        context: dict[str, Any], 
         **kwargs
     ) -> NotificationMessage:
         """Render template with provided context.
@@ -52,7 +51,7 @@ class TemplateManager:
     
     def __init__(self):
         """Initialize template manager."""
-        self.templates: Dict[str, NotificationTemplate] = {}
+        self.templates: dict[str, NotificationTemplate] = {}
         self._load_default_templates()
     
     def register_template(self, template: NotificationTemplate) -> None:
@@ -63,7 +62,7 @@ class TemplateManager:
         """
         self.templates[template.name] = template
     
-    def get_template(self, name: str) -> Optional[NotificationTemplate]:
+    def get_template(self, name: str) -> NotificationTemplate | None:
         """Get template by name.
         
         Args:
@@ -74,7 +73,7 @@ class TemplateManager:
         """
         return self.templates.get(name)
     
-    def list_templates(self) -> List[str]:
+    def list_templates(self) -> list[str]:
         """List all available template names.
         
         Returns:
@@ -85,9 +84,9 @@ class TemplateManager:
     def render_template(
         self,
         template_name: str,
-        context: Dict[str, Any],
+        context: dict[str, Any],
         **kwargs
-    ) -> Optional[NotificationMessage]:
+    ) -> NotificationMessage | None:
         """Render template with context.
         
         Args:

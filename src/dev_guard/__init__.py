@@ -5,8 +5,8 @@ Bootstrap API surface; implementation details are subject to change.
 
 from __future__ import annotations
 
-from .api.swarm import DevGuardSwarm
 from .api.config import Config
+from .api.swarm import DevGuardSwarm
 
 __all__ = ["DevGuardSwarm", "Config", "__version__"]
 

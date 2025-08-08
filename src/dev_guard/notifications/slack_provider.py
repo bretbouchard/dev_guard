@@ -1,17 +1,11 @@
 """Slack notification provider."""
 
 import logging
-from typing import Dict, List, Optional
 
 import aiohttp
 from pydantic import BaseModel
 
-from .base import (
-    NotificationLevel,
-    NotificationMessage,
-    NotificationProvider,
-    NotificationResult
-)
+from .base import NotificationLevel, NotificationMessage, NotificationProvider, NotificationResult
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +13,9 @@ logger = logging.getLogger(__name__)
 class SlackMessage(BaseModel):
     """Slack webhook message format."""
     
-    text: Optional[str] = None
-    blocks: Optional[List[Dict]] = None
-    attachments: Optional[List[Dict]] = None
+    text: str | None = None
+    blocks: list[dict] | None = None
+    attachments: list[dict] | None = None
 
 
 class SlackProvider(NotificationProvider):
@@ -30,10 +24,10 @@ class SlackProvider(NotificationProvider):
     def __init__(
         self,
         webhook_url: str,
-        channel: Optional[str] = None,
-        username: Optional[str] = "DevGuard",
-        icon_emoji: Optional[str] = ":robot_face:",
-        supported_levels: Optional[List[NotificationLevel]] = None,
+        channel: str | None = None,
+        username: str | None = "DevGuard",
+        icon_emoji: str | None = ":robot_face:",
+        supported_levels: list[NotificationLevel] | None = None,
         enabled: bool = True
     ):
         """Initialize Slack provider.
@@ -153,7 +147,7 @@ class SlackProvider(NotificationProvider):
                 error=str(e)
             )
     
-    def _create_attachment(self, message: NotificationMessage) -> Dict:
+    def _create_attachment(self, message: NotificationMessage) -> dict:
         """Create Slack attachment from notification message.
         
         Args:

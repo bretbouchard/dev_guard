@@ -1,0 +1,31 @@
+{
+    "cSpell.words": [
+        "addopts",
+        "aiofiles",
+        "airx",
+        "asyncio",
+        "Bouchard",
+        "chromadb",
+        "codegen",
+        "docstrings",
+        "dotenv",
+        "gooseai",
+        "isort",
+        "langchain",
+        "langgraph",
+        "mistralai",
+        "mypy",
+        "Nomic",
+        "numpy",
+        "Ollama",
+        "openrouter",
+        "pydantic",
+        "pytest",
+        "setuptools",
+        "sqlalchemy",
+        "testpaths",
+        "typer",
+        "venv",
+        "zhipuai"
+    ]
+}

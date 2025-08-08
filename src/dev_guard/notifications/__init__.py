@@ -5,7 +5,7 @@ Email. Provides template-based messaging with customization and filtering
 capabilities.
 """
 
-from .base import NotificationProvider, NotificationMessage, NotificationLevel
+from .base import NotificationLevel, NotificationMessage, NotificationProvider
 from .discord_provider import DiscordProvider
 from .email_provider import EmailProvider
 from .notification_manager import NotificationManager

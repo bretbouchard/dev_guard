@@ -1,0 +1,367 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  quality-checks:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Sync dependencies
+      run: |
+        uv venv --python python3
+        uv pip sync requirements.uv
+        
+    - name: Run black formatting check
+      run: uv run black --check --diff src tests
+
+
+    - name: Run ruff linting
+      run: uv run ruff check src tests
+
+    - name: Run mypy type checking
+      run: uv run mypy src tests
+
+    - name: Run bandit security check
+      run: uv run bandit -r src -f json -o bandit-report.json
+      continue-on-error: true
+
+    - name: Run safety dependency check
+      run: uv run safety check --json --output safety-report.json
+      continue-on-error: true
+      
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-reports
+        path: |
+          bandit-report.json
+          safety-report.json
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Sync dependencies
+      run: |
+        uv venv --python python3
+        uv pip sync requirements.uv
+        
+    - name: Run unit tests
+      run: |
+        uv run pytest tests/unit \
+          --cov=src/dev_guard \
+          --cov-report=xml \
+          --cov-report=html \
+          --cov-report=term-missing \
+          --cov-fail-under=95 \
+          --junitxml=junit-results.xml \
+          -v
+          
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+        
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results-${{ matrix.python-version }}
+        path: |
+          junit-results.xml
+          htmlcov/
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [quality-checks, unit-tests]
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_devguard
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y git
+
+    - name: Sync Python dependencies
+      run: |
+        uv venv --python python3
+        uv pip sync requirements.uv
+        
+    - name: Set up test environment
+      run: |
+        mkdir -p test_repos
+        git config --global user.email "test@example.com"
+        git config --global user.name "Test User"
+        
+    - name: Run integration tests
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_devguard
+        TEST_MODE: integration
+      run: |
+        uv run pytest tests/integration \
+          --cov=src/dev_guard \
+          --cov-append \
+          --cov-report=xml \
+          --junitxml=integration-results.xml \
+          -v \
+          --timeout=300
+          
+    - name: Upload integration test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: integration-test-results
+        path: |
+          integration-results.xml
+          coverage.xml
+
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: [unit-tests]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Sync dependencies
+      run: |
+        uv venv --python python3
+        uv pip sync requirements.uv
+        
+    - name: Run performance tests
+      run: |
+        uv run pytest tests/performance \
+          --benchmark-only \
+          --benchmark-json=benchmark-results.json \
+          -v
+          
+    - name: Upload benchmark results
+      uses: actions/upload-artifact@v3
+      with:
+        name: benchmark-results
+        path: benchmark-results.json
+
+  security-tests:
+    name: Security Tests
+    runs-on: ubuntu-latest
+    needs: [quality-checks]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Sync dependencies
+      run: |
+        uv venv --python python3
+        uv pip sync requirements.uv
+        
+    - name: Run security tests
+      run: |
+        uv run pytest tests/security \
+          --junitxml=security-test-results.xml \
+          -v
+          
+    - name: Run additional security scans
+      run: |
+        # Run semgrep for additional security analysis
+        uv pip install semgrep
+        uv run semgrep --config=auto --json --output=semgrep-results.json src/
+        
+    - name: Upload security test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-test-results
+        path: |
+          security-test-results.xml
+          semgrep-results.json
+
+  build-and-test:
+    name: Build and Test Package
+    runs-on: ubuntu-latest
+    needs: [quality-checks, unit-tests, integration-tests]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Install build dependencies
+      run: |
+        uv pip install build twine
+        
+    - name: Build package
+      run: uv run python -m build
+      
+    - name: Check package
+      run: uv run twine check dist/*
+      
+    - name: Test package installation
+      run: |
+        uv pip install dist/*.whl
+        uv run python -c "import dev_guard; print('Package installed successfully')"
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-artifacts
+        path: dist/
+
+  coverage-report:
+    name: Coverage Report
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests]
+    if: always()
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Install coverage tool
+      run: |
+        uv pip install coverage[toml]
+        
+    - name: Download coverage artifacts
+      uses: actions/download-artifact@v3
+      with:
+        path: coverage-artifacts
+        
+    - name: Combine coverage reports
+      run: |
+        uv run coverage combine coverage-artifacts/*/coverage.xml || true
+        uv run coverage report --show-missing
+        uv run coverage html
+        
+    - name: Upload combined coverage
+      uses: actions/upload-artifact@v3
+      with:
+        name: combined-coverage
+        path: htmlcov/
+
+  notify-status:
+    name: Notify Status
+    runs-on: ubuntu-latest
+    needs: [quality-checks, unit-tests, integration-tests, security-tests, build-and-test]
+    if: always()
+    
+    steps:
+    - name: Notify success
+      if: ${{ needs.quality-checks.result == 'success' && needs.unit-tests.result == 'success' && needs.integration-tests.result == 'success' }}
+      run: |
+        echo "✅ All tests passed successfully!"
+        echo "Quality checks: ${{ needs.quality-checks.result }}"
+        echo "Unit tests: ${{ needs.unit-tests.result }}"
+        echo "Integration tests: ${{ needs.integration-tests.result }}"
+        echo "Security tests: ${{ needs.security-tests.result }}"
+        echo "Build and test: ${{ needs.build-and-test.result }}"
+        
+    - name: Notify failure
+      if: ${{ needs.quality-checks.result == 'failure' || needs.unit-tests.result == 'failure' || needs.integration-tests.result == 'failure' }}
+      run: |
+        echo "❌ Some tests failed!"
+        echo "Quality checks: ${{ needs.quality-checks.result }}"
+        echo "Unit tests: ${{ needs.unit-tests.result }}"
+        echo "Integration tests: ${{ needs.integration-tests.result }}"
+        echo "Security tests: ${{ needs.security-tests.result }}"
+        echo "Build and test: ${{ needs.build-and-test.result }}"
+        exit 1

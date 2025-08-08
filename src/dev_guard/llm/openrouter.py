@@ -1,15 +1,20 @@
 """OpenRouter API client for DevGuard."""
 
-import asyncio
-import time
-from typing import Dict, List, Optional, Any
-import aiohttp
 import logging
+import time
+from typing import Any
+
+import aiohttp
 
 from .provider import (
-    LLMProvider, LLMMessage, LLMResponse, LLMUsage,
-    LLMProviderError, LLMProviderNotAvailableError,
-    LLMProviderTimeoutError, LLMProviderRateLimitError
+    LLMMessage,
+    LLMProvider,
+    LLMProviderError,
+    LLMProviderNotAvailableError,
+    LLMProviderRateLimitError,
+    LLMProviderTimeoutError,
+    LLMResponse,
+    LLMUsage,
 )
 
 logger = logging.getLogger(__name__)
@@ -37,7 +42,7 @@ PREFERRED_FREE_MODELS = [
 class OpenRouterClient(LLMProvider):
     """OpenRouter API client with fallback support."""
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config)
         self.api_key = config.get("api_key")
         self.base_url = config.get(
@@ -70,7 +75,7 @@ class OpenRouterClient(LLMProvider):
             self.logger.warning(f"OpenRouter availability check failed: {e}")
             return False
     
-    def _get_headers(self) -> Dict[str, str]:
+    def _get_headers(self) -> dict[str, str]:
         """Get request headers for OpenRouter API."""
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -85,8 +90,8 @@ class OpenRouterClient(LLMProvider):
         return headers
     
     def _messages_to_openai_format(
-        self, messages: List[LLMMessage]
-    ) -> List[Dict[str, Any]]:
+        self, messages: list[LLMMessage]
+    ) -> list[dict[str, Any]]:
         """Convert LLMMessage objects to OpenAI API format."""
         return [
             {
@@ -101,10 +106,10 @@ class OpenRouterClient(LLMProvider):
     
     async def chat_completion(
         self,
-        messages: List[LLMMessage],
-        model: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
+        messages: list[LLMMessage],
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
         **kwargs: Any
     ) -> LLMResponse:
         """Generate a chat completion using OpenRouter."""
@@ -198,7 +203,7 @@ class OpenRouterClient(LLMProvider):
                         }
                     )
                     
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise LLMProviderTimeoutError(
                 f"OpenRouter request timed out after {self.timeout}s"
             )
@@ -211,7 +216,7 @@ class OpenRouterClient(LLMProvider):
                 raise
             raise LLMProviderError(f"Unexpected OpenRouter error: {e}")
     
-    async def get_available_models(self) -> List[Dict[str, Any]]:
+    async def get_available_models(self) -> list[dict[str, Any]]:
         """Get list of available models from OpenRouter."""
         try:
             async with aiohttp.ClientSession() as session:
