@@ -28,7 +28,9 @@ class PostgresConnectionProvider:
     maxconn: int = 5
 
     def __post_init__(self) -> None:
-        self._pool = SimpleConnectionPool(self.minconn, self.maxconn, dsn=self.dsn)
+        # Normalize SQLAlchemy-style DSN to a psycopg2-compatible DSN if necessary
+        dsn = self.dsn.replace("postgresql+psycopg2://", "postgresql://")
+        self._pool = SimpleConnectionPool(self.minconn, self.maxconn, dsn=dsn)
 
     @contextlib.contextmanager
     def connection(self):
