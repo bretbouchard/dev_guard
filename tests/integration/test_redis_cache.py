@@ -13,7 +13,9 @@ def test_redis_cache_roundtrip():
     from testcontainers.redis import RedisContainer
 
     with RedisContainer("redis:7-alpine") as rc:
-        url = rc.get_connection_url()
+        host = rc.get_container_host_ip()
+        port = rc.get_exposed_port(6379)
+        url = f"redis://{host}:{port}/0"
         cache = RedisCache(url=url)
 
         cache.set("foo", "bar")
