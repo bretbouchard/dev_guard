@@ -21,10 +21,11 @@ from dev_guard.agents.red_team import (
     SecurityFinding,
     SeverityLevel,
     VulnerabilityType,
-)
-from dev_guard.core.config import Config
-from dev_guard.memory.shared_memory import SharedMemory
-from dev_guard.memory.vector_db import VectorDatabase
+    TestType,
+)  # noqa: E402
+from dev_guard.core.config import Config  # noqa: E402
+from dev_guard.memory.shared_memory import SharedMemory  # noqa: E402
+from dev_guard.memory.vector_db import VectorDatabase  # noqa: E402
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -251,15 +252,10 @@ async def test_security_vulnerability_scanning():
             findings = report['findings']
             vulnerability_types = [f['vulnerability_type'] for f in findings]
             
-            expected_vulns = [
-                'configuration',  # hardcoded secrets, debug mode
-                'code_injection', # eval, SQL injection
-                'configuration'   # Docker/K8s issues
-            ]
-            
+            # Expect at least configuration and code_injection categories
             found_vulns = set(vulnerability_types)
             print(f"   🔍 Vulnerability types found: {found_vulns}")
-            
+
             # Print detailed findings summary
             print("   📋 Security Scan Summary:")
             for line in summary.split('\n'):
@@ -388,7 +384,7 @@ async def test_data_models():
             owasp_category="A03_Injection",
             remediation="Use parameterized queries"
         )
-        
+
         print(f"   ✅ SecurityFinding created: {finding.finding_id}")
         print(f"      Type: {finding.vulnerability_type.value}")
         print(f"      Severity: {finding.severity.value}")

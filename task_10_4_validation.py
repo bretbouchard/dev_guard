@@ -162,7 +162,7 @@ def test_json_serialization():
     
     try:
         json_str = json.dumps(test_data, indent=2)
-        parsed = json.loads(json_str)
+        json.loads(json_str)
         print("   ✓ JSON serialization: successful")
         return True
     except Exception as e:

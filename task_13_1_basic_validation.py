@@ -29,10 +29,7 @@ def test_basic_functionality():
     # Test 1: Class instantiation
     try:
         # Create a mock agent (without full dependencies for simple test)
-        agent_config = {
-            "agent_id": "test_impact_mapper",
-            # We'll skip full initialization for basic test
-        }
+        # Basic import check only (skip full initialization for this simple validation)
         print("✅ Impact Mapper Agent class is importable")
         results["class_import"] = "✅ PASS"
     except Exception as e:

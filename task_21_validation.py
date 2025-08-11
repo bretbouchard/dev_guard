@@ -354,17 +354,17 @@ async def main():
     validator = Task21Validator()
     
     # Run all validations
-    validations = [
+    _ = [
         validator.validate_test_files_structure(),
         validator.validate_end_to_end_workflows(),
         validator.validate_system_resilience_tests(),
         validator.validate_test_infrastructure(),
-        validator.validate_integration_patterns()
+        validator.validate_integration_patterns(),
     ]
-    
+
     # Generate final report
     success = validator.generate_summary_report()
-    
+
     return 0 if success else 1
 
 

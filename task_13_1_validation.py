@@ -8,6 +8,7 @@ including API change detection, dependency analysis, and relationship mapping.
 
 import asyncio
 import json
+from datetime import datetime
 
 # Add src to path for imports
 import sys
@@ -18,10 +19,10 @@ from typing import Any
 src_path = Path(__file__).parent / "src"
 sys.path.insert(0, str(src_path))
 
-from src.dev_guard.agents.impact_mapper import ImpactMapperAgent
-from src.dev_guard.core.shared_memory import SharedMemory
-from src.dev_guard.llm.providers.openai_provider import OpenAIProvider
-from src.dev_guard.memory.vector_db import VectorDB
+from src.dev_guard.agents.impact_mapper import ImpactMapperAgent  # noqa: E402
+from src.dev_guard.core.shared_memory import SharedMemory  # noqa: E402
+from src.dev_guard.llm.providers.openai_provider import OpenAIProvider  # noqa: E402
+from src.dev_guard.memory.vector_db import VectorDB  # noqa: E402
 
 
 class Task13ValidationTest:

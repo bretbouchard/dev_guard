@@ -114,8 +114,13 @@ class DocsAgent(BaseAgent):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.llm_provider = kwargs.get('llm_provider')
-        
+        # Initialize SmartLLM wrapper (Ollama-only) using global config
+        try:
+            from ..llm.factory import get_llm_interface
+            self.llm_provider = get_llm_interface(self.config.llm)
+        except Exception:
+            self.llm_provider = None
+
         # Documentation tracking
         self.documentation_cache: dict[str, DocumentationReport] = {}
         self.code_analysis_cache: dict[str, list[CodeElement]] = {}
@@ -204,10 +209,7 @@ Usage:
         
     async def execute(self, state: Any) -> Any:
         """Execute the docs agent's main logic."""
-        if isinstance(state, dict):
-            task = state
-        else:
-            task = {"type": "generate_docs", "description": str(state)}
+        state if isinstance(state, dict) else {"type": "generate_docs", "description": str(state)}
         
     
     async def execute_task(self, task: dict[str, Any]) -> dict[str, Any]:
@@ -406,8 +408,10 @@ Follow the Google docstring style for Python or appropriate style for the langua
 Return only the docstring content, properly formatted.
 """
             
-            response = await self.llm_provider.generate_response(prompt)
-            
+            response = await self.llm_provider.generate([
+                {"role": "user", "content": prompt}
+            ])
+
             if response and response.content:
                 # Clean and format the docstring
                 docstring = response.content.strip()
@@ -452,7 +456,7 @@ Return only the docstring content, properly formatted.
                     code_elements.extend(elements)
             else:
                 # Recursively analyze directory
-                for root, dirs, files in os.walk(path):
+                for root, _dirs, files in os.walk(path):
                     for file in files:
                         if any(file.endswith(ext) for ext in self.code_extensions):
                             file_path = os.path.join(root, file)
@@ -480,7 +484,7 @@ Return only the docstring content, properly formatted.
             tree = ast.parse(source)
             
             for node in ast.walk(tree):
-                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
                     # Analyze function
                     element = CodeElement(
                         name=node.name,
@@ -542,7 +546,7 @@ Return only the docstring content, properly formatted.
         complexity = 1  # Base complexity
         
         for child in ast.walk(node):
-            if isinstance(child, (ast.If, ast.While, ast.For, ast.Try, ast.With)):
+            if isinstance(child, ast.If | ast.While | ast.For | ast.Try | ast.With):
                 complexity += 1
             elif isinstance(child, ast.BoolOp):
                 complexity += len(child.values) - 1
@@ -553,7 +557,7 @@ Return only the docstring content, properly formatted.
         """Update docstring in source file."""
         try:
             with open(element.file_path, encoding='utf-8') as f:
-                lines = f.readlines()
+                f.readlines()
             
             # Find the location to insert/update docstring
             # This is a simplified implementation
@@ -794,7 +798,7 @@ Return only the docstring content, properly formatted.
     async def _sync_docs_with_code(self, task: dict[str, Any]) -> dict[str, Any]:
         """Synchronize documentation with code changes."""
         try:
-            repository_path = task.get("repository_path", ".")
+            task.get("repository_path", ".")
             changed_files = task.get("changed_files", [])
             
             if not changed_files:
@@ -829,11 +833,7 @@ Return only the docstring content, properly formatted.
     async def _check_documentation_freshness(self, file_path: str, elements: list[CodeElement]) -> bool:
         """Check if documentation needs updating based on code changes."""
         # Simplified check - in practice, you'd compare timestamps, signatures, etc.
-        for element in elements:
-            if not element.current_docstring:
-                return True
-            
-        return False
+        return any(not element.current_docstring for element in elements)
 
     async def _analyze_documentation_coverage(self, task: dict[str, Any]) -> dict[str, Any]:
         """Analyze documentation coverage across the codebase."""
@@ -1036,7 +1036,7 @@ Return only the docstring content, properly formatted.
         }
         
         # Simple analysis - in practice would be more sophisticated
-        for root, dirs, files in os.walk(repository_path):
+        for root, _dirs, files in os.walk(repository_path):
             if any(excluded in root for excluded in ['.git', '__pycache__', 'node_modules']):
                 continue
                 
@@ -1121,7 +1121,7 @@ Return only the docstring content, properly formatted.
             
             # Check for common documentation issues
             doc_files = []
-            for root, dirs, files in os.walk(repository_path):
+            for root, _dirs, files in os.walk(repository_path):
                 for file in files:
                     if any(file.endswith(ext) for ext in self.doc_extensions):
                         doc_files.append(os.path.join(root, file))
@@ -1154,7 +1154,7 @@ Return only the docstring content, properly formatted.
             # Check for broken markdown links (simple regex)
             if file_path.endswith('.md'):
                 broken_links = re.findall(r'\[([^\]]+)\]\(([^)]+)\)', content)
-                for link_text, link_url in broken_links:
+                for _link_text, link_url in broken_links:
                     if link_url.startswith('http') and not await self._check_url_valid(link_url):
                         issues.append(f"{file_path}: Broken link to {link_url}")
             

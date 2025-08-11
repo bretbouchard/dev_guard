@@ -77,10 +77,12 @@ class NotificationSystemValidator:
             
             self.log_test_result(
                 "Discord Provider - Basic functionality",
-                isinstance(discord_provider, DiscordProvider) and 
-                supports_warning and not supports_info
+                isinstance(discord_provider, DiscordProvider)
+                and isinstance(test_message, NotificationMessage)
+                and supports_warning
+                and not supports_info,
             )
-            
+
         except Exception as e:
             self.log_test_result("Discord Provider - Basic functionality", False, str(e))
         

@@ -12,6 +12,8 @@
 - **Dependency Management**: Automated upgrades with justification tracking
 - **Audit Trail**: Complete replay and decision logging
 
+- **Smart Loop Mitigation**: SmartLLM reduces repetitive/looping responses when using local LLMs
+
 ## 🧠 Agent Architecture
 
 | Agent | Responsibility |
@@ -67,11 +69,11 @@ make test      # run unit and integration tests
 ```
 
 ```bash
-# Start the dev_guard swarm
+# Start the dev_guard swarm (requires LangGraph installed)
 dev-guard start
 
-# Add repositories to monitor
-dev-guard repo add /path/to/repo
+# Inject a task via CLI
+dev-guard inject testing "Run unit tests"
 
 # View swarm status
 dev-guard status
@@ -79,6 +81,38 @@ dev-guard status
 # Stop the swarm
 dev-guard stop
 ```
+
+### API Server
+
+Run the HTTP API for programmatic control:
+
+```bash
+uvicorn dev_guard.api.app:app --reload --host 0.0.0.0 --port 8000
+```
+
+- Health: curl http://localhost:8000/health
+- Docs (OpenAPI): http://localhost:8000/docs
+- Inject a task:
+
+```bash
+curl -X POST http://localhost:8000/tasks \
+  -H 'Content-Type: application/json' \
+  -d '{"description":"Refactor API module","task_type":"code_refactor","priority":"high"}'
+```
+
+### Documentation
+
+MkDocs Material documentation lives under docs/source.
+
+- Serve docs locally:
+
+```bash
+pip install mkdocs-material
+mkdocs serve
+```
+
+- Entry page: http://127.0.0.1:8000 (from mkdocs serve)
+- See also examples/example_api_usage.ipynb for a runnable demo.
 
 ## 🛠️ Development
 
@@ -128,23 +162,51 @@ mypy src/
 
 ## 📊 Architecture
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Commander     │    │    Planner      │    │   Code Agent    │
-│     Agent       │◄──►│     Agent       │◄──►│                 │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                   Shared Memory & Vector DB                     │
-│                        (Chroma + SQLite)                       │
-└─────────────────────────────────────────────────────────────────┘
-         ▲                       ▲                       ▲
-         │                       │                       │
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  Git Watcher    │    │ Impact Mapper   │    │  Dep Manager    │
-│     Agent       │    │     Agent       │    │     Agent       │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
+```mermaid
+flowchart TD
+  U[User / CI / Tools]
+  subgraph Interface
+    CLI[dev-guard CLI]
+    API[FastAPI HTTP API]
+  end
+  U -->|commands| CLI
+  U -->|HTTP| API
+
+  subgraph Core
+    SW[Swarm (LangGraph)]
+    CFG[Config]
+    SM[Shared Memory]
+    VDB[Vector DB]
+  end
+
+  subgraph Agents
+    CMD[Commander]
+    PLN[Planner]
+    COD[Code Agent]
+    QA[QA/Test]
+    DOC[Docs]
+    GW[Git Watcher]
+    IMP[Impact Mapper]
+    AUD[Repo Auditor]
+    DEP[Dep Manager]
+  end
+
+  CLI --> SW
+  API --> SW
+  CFG --> SW
+  CFG --> Agents
+  SW <--> SM
+  SW <--> VDB
+  SW <--> Agents
+
+  subgraph Adapters
+    LLM[LLM Providers]
+    NOTIF[Notification Providers]
+  end
+
+  Agents <--> LLM
+  Agents <--> NOTIF
+  VDB -. embeddings .-> LLM
 ```
 
 ## 🔧 Configuration

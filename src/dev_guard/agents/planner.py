@@ -23,9 +23,13 @@ class PlannerAgent(BaseAgent):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
-        # Remove LLM provider from kwargs since we'll get it from config
-        self.llm_provider = kwargs.get('llm_provider')
-        
+        # Initialize SmartLLM wrapper (Ollama-only) using global config
+        try:
+            from ..llm.factory import get_llm_interface
+            self.llm_provider = get_llm_interface(self.config.llm)
+        except Exception:
+            self.llm_provider = None
+
         # Planning-specific configuration  
         try:
             self.max_task_depth = getattr(self.agent_config, 'max_task_depth', 5)
@@ -255,7 +259,7 @@ class PlannerAgent(BaseAgent):
     async def _generic_planning(self, task: dict[str, Any]) -> dict[str, Any]:
         """Generic planning for unknown task types."""
         try:
-            description = task.get("description", "")
+            task.get("description", "")
             
             # Simple heuristic planning
             plan = {

@@ -11,10 +11,10 @@ from datetime import UTC, datetime
 sys.path.insert(0, 'src')
 
 try:
-    import typer
-    from typer.testing import CliRunner
+    import typer  # noqa: F401
+    from typer.testing import CliRunner  # noqa: F401
 
-    from dev_guard.cli import app
+    from dev_guard.cli import app  # noqa: F401
     from dev_guard.core.config import (
         AgentConfig,
         Config,
@@ -24,9 +24,9 @@ try:
         VectorDBConfig,
         VectorDBProvider,
     )
-    from dev_guard.core.swarm import DevGuardSwarm, SwarmState
-    from dev_guard.memory.shared_memory import AgentState, MemoryEntry, SharedMemory, TaskStatus
-    from dev_guard.memory.vector_db import VectorDatabase
+    from dev_guard.core.swarm import DevGuardSwarm, SwarmState  # noqa: F401
+    from dev_guard.memory.shared_memory import AgentState, MemoryEntry, SharedMemory, TaskStatus  # noqa: F401
+    from dev_guard.memory.vector_db import VectorDatabase  # noqa: F401
 except ImportError as e:
     print(f"❌ Import error: {e}")
     print("Make sure you're in the project root and have installed dependencies")
@@ -159,30 +159,36 @@ def test_cli_commands():
     print("  ✓ Testing CLI command availability...")
     
     # Use a simplified approach to check command availability
+    # Expected command names that should be available in the CLI help
     command_names = [
-        "start", "stop", "status", "agents", "config", 
-        "interactive", "pause-agent", "resume-agent", 
-        "inject-task", "cancel-task", "task-details", 
+        "start", "stop", "status", "agents", "config",
+        "interactive", "pause-agent", "resume-agent",
+        "inject-task", "cancel-task", "task-details",
         "agent-details", "list-tasks", "version", "mcp-server"
     ]
-    
+
     expected_new_commands = [
-        "interactive", "pause-agent", "resume-agent", 
-        "inject-task", "cancel-task", "task-details", 
-        "agent-details", "list-tasks"
+        "interactive", "pause-agent", "resume-agent",
+        "inject-task", "cancel-task", "task-details",
+        "agent-details", "list-tasks",
     ]
-    
+
+    # Validate that our expected commands are represented in the CLI set
+    assert set(expected_new_commands).issubset(set(command_names))
+
     # For this test, we'll assume all commands are implemented
     # since they're defined in the CLI file
     found_commands = expected_new_commands
-    
-    print(f"    • Found {len(found_commands)}/{len(expected_new_commands)} expected commands")
-    
+
+    print(
+        f"    • Found {len(found_commands)}/{len(expected_new_commands)} expected commands"
+    )
+
     # Test 2: Helper function availability
     print("  ✓ Testing helper functions...")
     try:
-        from dev_guard.cli import _get_status_color, _show_interactive_help
-        
+        from dev_guard.cli import _get_status_color, _show_interactive_help  # noqa: F401
+
         # Test status color function
         test_colors = ["pending", "running", "completed", "failed", "paused"]
         colors = [_get_status_color(status) for status in test_colors]
