@@ -4,13 +4,14 @@ Tests complete user workflows from request to completion.
 """
 
 from unittest.mock import AsyncMock, patch
+from types import SimpleNamespace
 
 import pytest
+import pytest_asyncio
 from git import Repo
 
 from dev_guard.core.config import Config
 from dev_guard.core.swarm import DevGuardSwarm
-from dev_guard.llm.openrouter import OpenRouterClient
 from dev_guard.memory.shared_memory import SharedMemory
 from dev_guard.memory.vector_db import VectorDatabase
 
@@ -18,7 +19,7 @@ from dev_guard.memory.vector_db import VectorDatabase
 class TestEndToEndWorkflows:
     """Test suite for complete end-to-end DevGuard workflows."""
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def test_environment(self, tmp_path):
         """Set up complete test environment with all components."""
         # Create test configuration
@@ -84,23 +85,23 @@ def divide(a, b):
         )
         
         # Commit files
-        repo.index.add_items([
-            test_repo_path / "README.md",
-            test_repo_path / "src" / "__init__.py", 
-            test_repo_path / "src" / "calculator.py",
-            test_repo_path / "requirements.txt"
+        repo.index.add([
+            str(test_repo_path / "README.md"),
+            str(test_repo_path / "src" / "__init__.py"),
+            str(test_repo_path / "src" / "calculator.py"),
+            str(test_repo_path / "requirements.txt"),
         ])
         repo.index.commit("Initial commit")
-        
+
         config = Config.load_from_dict(config_data)
         
         # Initialize core components
         shared_memory = SharedMemory(db_path=str(tmp_path / "memory.db"))
         vector_db = VectorDatabase(config.vector_db)
         
-        # Mock LLM client
-        mock_llm = AsyncMock(spec=OpenRouterClient)
-        
+        # Mock LLM interface (SmartLLM-compatible)
+        mock_llm = AsyncMock()
+
         return {
             "config": config,
             "shared_memory": shared_memory,
@@ -116,23 +117,19 @@ def divide(a, b):
         """Test complete code generation workflow from user request to completion."""
         env = test_environment
         
-        # Initialize swarm with mocked components
-        with patch('dev_guard.core.swarm.OpenRouterClient', return_value=env["mock_llm"]):
+        # Initialize swarm with mocked LLM interface factory
+        with patch('dev_guard.llm.factory.get_llm_interface', return_value=env["mock_llm"]):
             swarm = DevGuardSwarm(env["config"])
             await swarm.initialize()
             
             # Mock LLM responses for different agents
-            env["mock_llm"].chat_completion.side_effect = [
-                # Commander Agent response
-                AsyncMock(content='{"task_type": "code_generation", "agent": "code", "priority": "high", "description": "Generate unit tests for calculator.py"}'),
-                # Planner Agent response  
-                AsyncMock(content='{"subtasks": [{"type": "analyze_code", "agent": "code"}, {"type": "generate_tests", "agent": "qa_test"}], "dependencies": [], "estimated_time": 300}'),
-                # Code Agent response
-                AsyncMock(content='{"success": true, "files_modified": ["tests/test_calculator.py"], "summary": "Generated comprehensive unit tests"}'),
-                # QA Test Agent response
-                AsyncMock(content='{"success": true, "tests_passed": 8, "coverage": 95, "summary": "All tests passing with high coverage"}')
+            env["mock_llm"].generate.side_effect = [
+                SimpleNamespace(content='{"task_type": "code_generation", "agent": "code", "priority": "high", "description": "Generate unit tests for calculator.py"}'),
+                SimpleNamespace(content='{"subtasks": [{"type": "analyze_code", "agent": "code"}, {"type": "generate_tests", "agent": "qa_test"}], "dependencies": [], "estimated_time": 300}'),
+                SimpleNamespace(content='{"success": true, "files_modified": ["tests/test_calculator.py"], "summary": "Generated comprehensive unit tests"}'),
+                SimpleNamespace(content='{"success": true, "tests_passed": 8, "coverage": 95, "summary": "All tests passing with high coverage"}')
             ]
-            
+
             # Submit user request
             user_request = {
                 "type": "code_generation",
@@ -164,20 +161,17 @@ def divide(a, b):
         """Test complete security scanning workflow."""
         env = test_environment
         
-        with patch('dev_guard.core.swarm.OpenRouterClient', return_value=env["mock_llm"]):
+        with patch('dev_guard.llm.factory.get_llm_interface', return_value=env["mock_llm"]):
             swarm = DevGuardSwarm(env["config"])
             await swarm.initialize()
             
             # Mock security scan responses
-            env["mock_llm"].chat_completion.side_effect = [
-                # Commander Agent - route to security
-                AsyncMock(content='{"task_type": "security_scan", "agent": "red_team", "priority": "high"}'),
-                # Red Team Agent - security scan results
-                AsyncMock(content='{"success": true, "vulnerabilities_found": 2, "critical": 0, "high": 1, "medium": 1, "risk_score": 65}'),
-                # Planner Agent - create remediation plan
-                AsyncMock(content='{"remediation_tasks": [{"type": "fix_vulnerability", "file": "src/calculator.py", "issue": "division_by_zero"}]}')
+            env["mock_llm"].generate.side_effect = [
+                SimpleNamespace(content='{"task_type": "security_scan", "agent": "red_team", "priority": "high"}'),
+                SimpleNamespace(content='{"success": true, "vulnerabilities_found": 2, "critical": 0, "high": 1, "medium": 1, "risk_score": 65}'),
+                SimpleNamespace(content='{"remediation_tasks": [{"type": "fix_vulnerability", "file": "src/calculator.py", "issue": "division_by_zero"}]}')
             ]
-            
+
             # Submit security scan request
             security_request = {
                 "type": "security_scan",
