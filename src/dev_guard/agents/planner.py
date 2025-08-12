@@ -93,19 +93,28 @@ class PlannerAgent(BaseAgent):
             description = task.get("description", "")
             context = task.get("context", {})
             
-            # Get relevant context from vector database
-            relevant_docs = await self.vector_db.search(
-                query=description,
-                limit=5,
-                filter_metadata={"type": "code"}
-            )
-            
+            # Get relevant context from vector database (compat signature)
+            # Tests expect an async search with filter_metadata; support both.
+            try:
+                relevant_docs = await self.vector_db.search(
+                    query=description,
+                    limit=5,
+                    filter_metadata={"type": "code"}
+                )
+            except TypeError:
+                # Fallback to sync API with 'where' parameter
+                relevant_docs = self.vector_db.search(
+                    query=description,
+                    limit=5,
+                    where={"type": "code"}
+                )
+
             # Use LLM to analyze and create plan if available
             if self.llm_provider:
                 plan = await self._llm_analyze_task(description, context, relevant_docs)
             else:
                 plan = await self._heuristic_planning(description, context)
-            
+
             # Create subtasks based on the plan
             subtasks = self._create_subtasks(plan, task.get("task_id"))
             

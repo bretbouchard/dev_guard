@@ -8,8 +8,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import pytest_asyncio
 
-from dev_guard.agents.planner import PlannerAgent
-from dev_guard.memory.shared_memory import AgentState, TaskStatus
+from src.dev_guard.agents.planner import PlannerAgent
+from src.dev_guard.memory.shared_memory import AgentState, TaskStatus
 
 
 @pytest_asyncio.fixture

@@ -37,7 +37,7 @@ class TestLLMConfig:
         """Test default LLM configuration."""
         config = LLMConfig()
         assert config.provider == LLMProvider.OLLAMA
-        assert config.model == "qwen/qwen3-235b-a22b:free"
+        assert config.model == "gpt-oss:20b"
         assert config.temperature == 0.1
         assert config.max_tokens == 4096
         assert config.timeout == 30.0

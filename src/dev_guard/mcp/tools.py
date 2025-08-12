@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 class BaseMCPTool(ABC):
     """Base class for MCP tools."""
-    
+
     def __init__(
         self,
         shared_memory: SharedMemory | None = None,
@@ -37,27 +37,38 @@ class BaseMCPTool(ABC):
         self.logger = logger
 
     @property
-    @abstractmethod
     def name(self) -> str:
-        """Get tool name."""
-        pass
+        """Get tool name. Subclasses may override."""
+        return getattr(self, "_name", self.__class__.__name__)
 
     @property
-    @abstractmethod
     def description(self) -> str:
-        """Get tool description."""
-        pass
+        """Get tool description. Subclasses may override."""
+        return getattr(self, "_description", "")
 
     @property
-    @abstractmethod
     def parameters(self) -> list[MCPToolParameter]:
-        """Get tool parameters."""
-        pass
+        """Get tool parameters. Subclasses may override."""
+        return getattr(self, "_parameters", [])
 
     @abstractmethod
     async def execute(self, params: dict[str, Any]) -> dict[str, Any]:
         """Execute the tool with given parameters."""
         pass
+
+    # Allow simple assignment in tests
+    @name.setter
+    def name(self, value: str) -> None:  # type: ignore[override]
+        object.__setattr__(self, "_name", value)
+
+    @description.setter
+    def description(self, value: str) -> None:  # type: ignore[override]
+        object.__setattr__(self, "_description", value)
+
+    @parameters.setter
+    def parameters(self, value: list[MCPToolParameter]) -> None:  # type: ignore[override]
+        object.__setattr__(self, "_parameters", value)
+
 
     def to_mcp_tool(self) -> MCPTool:
         """Convert to MCP tool definition."""
@@ -242,9 +253,9 @@ class PatternSearchTool(BaseMCPTool):
                 search_terms = [pattern]
                 if query:
                     search_terms.append(query)
-                
+
                 search_query = " ".join(search_terms)
-                
+
                 # Build filter metadata
                 where_conditions = {}
                 if language:
@@ -267,7 +278,7 @@ class PatternSearchTool(BaseMCPTool):
                         "language": metadata.get("language", ""),
                         "pattern": pattern,
                     }
-                    
+
                     # Extract additional metadata if available
                     if "function_name" in metadata:
                         result_item["function_name"] = metadata["function_name"]
@@ -332,7 +343,7 @@ class DependencyAnalysisTool(BaseMCPTool):
 
             # Fallback to basic analysis
             dependencies = {}
-            
+
             # Check for common dependency files
             dependency_files = [
                 "package.json",
@@ -351,7 +362,7 @@ class DependencyAnalysisTool(BaseMCPTool):
                 if os.path.exists(file_path):
                     with open(file_path, encoding='utf-8') as f:
                         content = f.read()
-                    
+
                     dependencies[dep_file] = {
                         "file_path": file_path,
                         "content": content[:1000],  # Truncate for brevity
@@ -431,7 +442,7 @@ class ImpactAnalysisTool(BaseMCPTool):
                     query=change_description,
                     n_results=10,
                 )
-                
+
                 impact_analysis["related_code"] = [
                     {
                         "file_path": item.get("metadata", {}).get(
@@ -491,11 +502,11 @@ class SecurityScanTool(BaseMCPTool):
 
             # Fallback to basic security check
             vulnerabilities = []
-            
+
             if os.path.isfile(file_path):
                 with open(file_path, encoding='utf-8') as f:
                     content = f.read()
-                
+
                 # Basic pattern matching for common issues
                 security_patterns = {
                     "hardcoded_password": r'password\s*=\s*["\'][^"\']{1,}["\']',
@@ -565,10 +576,10 @@ class RecommendationTool(BaseMCPTool):
 
         try:
             suggestions = []
-            
+
             # Basic code quality checks
             lines = code_snippet.split('\n')
-            
+
             # Check for long lines
             for i, line in enumerate(lines):
                 if len(line) > 100:
@@ -579,12 +590,12 @@ class RecommendationTool(BaseMCPTool):
                         "message": "Line exceeds recommended length (100 characters)",
                         "suggestion": "Consider breaking this line into multiple lines",
                     })
-            
+
             # Check for common patterns
             if language.lower() in ["python", ""]:
                 # Python-specific checks
                 import re
-                
+
                 # Check for unused imports (basic)
                 if re.search(r'^import \w+$', code_snippet, re.MULTILINE):
                     suggestions.append({
@@ -593,7 +604,7 @@ class RecommendationTool(BaseMCPTool):
                         "message": "Potential unused imports detected",
                         "suggestion": "Review imports and remove unused ones",
                     })
-                
+
                 # Check for bare except clauses
                 if re.search(r'except:', code_snippet):
                     suggestions.append({
@@ -609,7 +620,7 @@ class RecommendationTool(BaseMCPTool):
                     query=code_snippet[:200],  # Use snippet for search
                     n_results=5,
                 )
-                
+
                 if search_results:
                     suggestions.append({
                         "type": "similar_code",

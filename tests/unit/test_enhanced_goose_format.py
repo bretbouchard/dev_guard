@@ -19,7 +19,16 @@ def mock_shared_memory():
 @pytest.fixture
 def code_agent(mock_shared_memory):
     """Create a CodeAgent instance for testing."""
-    agent = CodeAgent()
+    # Minimal config mock with required attributes
+    with patch('dev_guard.agents.code_agent.BaseAgent.__init__', return_value=None):
+        agent = CodeAgent(
+            agent_id="code_agent_test",
+            config=MagicMock(),
+            shared_memory=mock_shared_memory,
+            vector_db=MagicMock(),
+            working_directory="/test"
+        )
+    agent.agent_id = "code_agent_test"
     agent.shared_memory = mock_shared_memory
     agent.logger = MagicMock()
     return agent

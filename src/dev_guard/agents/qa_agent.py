@@ -383,7 +383,7 @@ class QATestAgent(BaseAgent):
 
             # Execute tests with timeout
             start_time = datetime.now(UTC)
-            result = await self._run_command(cmd, timeout=600)  # 10 minute timeout
+            result = await self._run_command(cmd)  # Timeout handled inside
             end_time = datetime.now(UTC)
 
             # Parse test results

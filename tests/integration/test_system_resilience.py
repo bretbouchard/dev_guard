@@ -9,10 +9,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from dev_guard.core.config import Config
-from dev_guard.core.swarm import DevGuardSwarm
-from dev_guard.memory.shared_memory import SharedMemory
-from dev_guard.memory.vector_db import VectorDatabase
+from src.dev_guard.core.config import Config
+from src.dev_guard.core.swarm import DevGuardSwarm
+from src.dev_guard.memory.shared_memory import SharedMemory
+from src.dev_guard.memory.vector_db import VectorDatabase
 
 
 class TestSystemResilience:
@@ -24,7 +24,7 @@ class TestSystemResilience:
         config_data = {
             "llm": {
                 "provider": "openrouter",
-                "model": "qwen/qwen-2.5-coder-32b-instruct",
+                "model": "gpt-oss:20b",
                 "api_key": "test-key",
                 "max_retries": 3,
                 "timeout": 10

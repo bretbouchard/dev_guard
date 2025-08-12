@@ -124,7 +124,7 @@ OPENROUTER_API_KEY=your_openrouter_key_here
 
 # Local LLM Configuration
 OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=qwen/qwen3-235b-a22b:free
+OLLAMA_MODEL=gpt-oss:20b
 
 # Vector Database Configuration
 CHROMA_DB_PATH=./data/chroma_db

@@ -12,6 +12,9 @@ from .models import (
     MCPResponse,
     MCPTool,
 )
+# Re-export base tool class for tests that import it directly
+from .tools import BaseMCPTool  # noqa: F401
+
 from .server import MCPServer
 from .tools import (
     CodeContextTool,

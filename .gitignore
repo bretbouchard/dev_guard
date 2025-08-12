@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Environments and secrets
+.env
+.env.*
+*.env
+.venv/
+venv/
+env/
+ENV/
+
+# Coverage / testing artifacts
+.pytest_cache/
+htmlcov/
+.coverage*
+coverage.xml
+coverage.json
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+wheels/
+
+# Caches / tooling
+.ruff_cache/
+.mypy_cache/
+.pytype/
+
+# Editors/OS
+.vscode/
+.idea/
+.DS_Store
+
+# Logs
+logs/
+*.log
+
+# Project data (local databases / vector indexes)
+data/shared_memory.db
+data/vector_db/
+**/*.sqlite*
+**/*.db
+
+# Misc
+*.bak
+*.tmp
+*.swp
+

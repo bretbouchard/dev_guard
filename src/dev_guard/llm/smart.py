@@ -75,6 +75,7 @@ class SmartLLM:
             raise TypeError("Unsupported config type for SmartLLM")
 
         self.config = cfg
+        logger.info(f"SmartLLM initialized with provider={cfg.provider} model={cfg.model} base_url={cfg.base_url or 'http://localhost:11434'}")
         self._provider: LLMProvider = self._build_primary_provider(cfg)
         self._last_responses: list[str] = []
 

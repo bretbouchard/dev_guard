@@ -10,10 +10,10 @@ import pytest
 import pytest_asyncio
 from git import Repo
 
-from dev_guard.core.config import Config
-from dev_guard.core.swarm import DevGuardSwarm
-from dev_guard.memory.shared_memory import SharedMemory
-from dev_guard.memory.vector_db import VectorDatabase
+from src.dev_guard.core.config import Config
+from src.dev_guard.core.swarm import DevGuardSwarm
+from src.dev_guard.memory.shared_memory import SharedMemory
+from src.dev_guard.memory.vector_db import VectorDatabase
 
 
 class TestEndToEndWorkflows:
@@ -26,7 +26,7 @@ class TestEndToEndWorkflows:
         config_data = {
             "llm": {
                 "provider": "openrouter",
-                "model": "qwen/qwen-2.5-coder-32b-instruct",
+                "model": "gpt-oss:20b",
                 "api_key": "mock-api-key"
             },
             "vector_db": {
@@ -209,7 +209,7 @@ def calculate_total(values):
         total = add(total, val)
     return total
 ''')
-        repo2.index.add_items([repo2_path / "main.py"])
+        repo2.index.add([str(repo2_path / "main.py")])
         repo2.index.commit("Add dependency on test-repo")
         
         # Update config to include both repositories

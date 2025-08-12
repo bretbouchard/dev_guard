@@ -18,6 +18,14 @@ from git import Repo
 from pydantic import BaseModel
 
 # Test configuration
+import os
+
+# Ensure tests use local Ollama GPT-OSS by default
+os.environ.setdefault("DEV_GUARD_LLM_PROVIDER", "ollama")
+os.environ.setdefault("DEV_GUARD_LLM_MODEL", "gpt-oss:20b")
+os.environ.setdefault("DEV_GUARD_LLM_BASE_URL", "http://localhost:11434")
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+
 pytest_plugins = ["pytest_asyncio"]
 fake = Faker()
 
@@ -146,10 +154,10 @@ def mock_git_repo(temp_dir):
     """Create a mock Git repository for testing"""
     repo_path = temp_dir / "test_repo"
     repo_path.mkdir()
-    
+
     # Initialize git repo
     repo = Repo.init(repo_path)
-    
+
     # Create some test files
     (repo_path / "README.md").write_text("# Test Repository\n\nThis is a test repository.")
     (repo_path / "src").mkdir()
@@ -170,11 +178,11 @@ from src.main import hello_world
 def test_hello_world():
     assert hello_world() == "Hello, World!"
 """)
-    
+
     # Create initial commit
     repo.index.add([str(f) for f in repo_path.rglob("*") if f.is_file()])
     repo.index.commit("Initial commit")
-    
+
     return {
         "path": repo_path,
         "repo": repo,
@@ -190,12 +198,12 @@ def test_hello_world():
 def mock_multi_repos(temp_dir):
     """Create multiple mock repositories for cross-repo testing"""
     repos = {}
-    
+
     for repo_name in ["frontend", "backend", "shared"]:
         repo_path = temp_dir / repo_name
         repo_path.mkdir()
         repo = Repo.init(repo_path)
-        
+
         # Create repo-specific files
         if repo_name == "frontend":
             (repo_path / "package.json").write_text('{"name": "frontend", "version": "1.0.0"}')
@@ -209,15 +217,15 @@ def mock_multi_repos(temp_dir):
             (repo_path / "setup.py").write_text("from setuptools import setup\nsetup(name='shared')")
             (repo_path / "shared").mkdir()
             (repo_path / "shared" / "utils.py").write_text("def shared_function(): return 'shared'")
-        
+
         repo.index.add([str(f) for f in repo_path.rglob("*") if f.is_file()])
         repo.index.commit(f"Initial {repo_name} commit")
-        
+
         repos[repo_name] = {
             "path": repo_path,
             "repo": repo
         }
-    
+
     return repos
 
 
@@ -298,7 +306,7 @@ print(result)  # Output: 55
 def mock_llm_client():
     """Mock LLM client for testing"""
     client = AsyncMock()
-    
+
     async def mock_generate(prompt: str, **kwargs) -> dict[str, Any]:
         # Simple mock response based on prompt keywords
         if "fibonacci" in prompt.lower():
@@ -316,11 +324,11 @@ def mock_llm_client():
                 "content": "# Generated code based on prompt",
                 "usage": {"prompt_tokens": 40, "completion_tokens": 25}
             }
-    
+
     client.generate = mock_generate
     client.is_available = AsyncMock(return_value=True)
     client.get_models = AsyncMock(return_value=["test-model", "backup-model"])
-    
+
     return client
 
 
@@ -332,11 +340,11 @@ async def mock_shared_memory():
     memory.entries = {}
     memory.tasks = {}
     memory.agent_states = {}
-    
+
     async def add_memory(entry: TestMemoryEntry) -> str:
         memory.entries[entry.id] = entry
         return entry.id
-    
+
     async def get_memories(agent_id: str, memory_type: str = None) -> list[TestMemoryEntry]:
         results = []
         for entry in memory.entries.values():
@@ -344,27 +352,27 @@ async def mock_shared_memory():
                 if memory_type is None or entry.type == memory_type:
                     results.append(entry)
         return results
-    
+
     async def create_task(task: TestTaskStatus) -> str:
         memory.tasks[task.id] = task
         return task.id
-    
+
     async def update_task(task_id: str, **updates) -> bool:
         if task_id in memory.tasks:
             for key, value in updates.items():
                 setattr(memory.tasks[task_id], key, value)
             return True
         return False
-    
+
     async def update_agent_state(state: TestAgentState) -> None:
         memory.agent_states[state.agent_id] = state
-    
+
     memory.add_memory = add_memory
     memory.get_memories = get_memories
     memory.create_task = create_task
     memory.update_task = update_task
     memory.update_agent_state = update_agent_state
-    
+
     return memory
 
 
@@ -374,7 +382,7 @@ async def mock_vector_db():
     vector_db = AsyncMock()
     vector_db.documents = {}
     vector_db.embeddings = {}
-    
+
     async def add_file_content(file_path: Path, content: str, metadata: dict) -> list[str]:
         doc_id = str(uuid.uuid4())
         vector_db.documents[doc_id] = {
@@ -384,7 +392,7 @@ async def mock_vector_db():
             "source": str(file_path)
         }
         return [doc_id]
-    
+
     async def search(query: str, n_results: int = 10, where: dict = None) -> list[dict]:
         # Simple mock search - return documents containing query terms
         results = []
@@ -394,7 +402,7 @@ async def mock_vector_db():
                 if len(results) >= n_results:
                     break
         return results
-    
+
     async def search_code(query: str, file_extensions: list[str] = None) -> list[dict]:
         results = []
         for doc in vector_db.documents.values():
@@ -405,12 +413,12 @@ async def mock_vector_db():
             if query.lower() in doc["content"].lower():
                 results.append(doc)
         return results
-    
+
     vector_db.add_file_content = add_file_content
     vector_db.search = search
     vector_db.search_code = search_code
     vector_db.get_collection = AsyncMock(return_value=MagicMock())
-    
+
     return vector_db
 
 
@@ -423,7 +431,7 @@ def mock_base_agent():
     agent.status = "idle"
     agent.memory_entries = []
     agent.tasks = []
-    
+
     async def log_observation(observation: str, data: dict = None) -> str:
         entry_id = str(uuid.uuid4())
         agent.memory_entries.append({
@@ -434,7 +442,7 @@ def mock_base_agent():
             "timestamp": datetime.now()
         })
         return entry_id
-    
+
     async def log_decision(decision: str, reasoning: str) -> str:
         entry_id = str(uuid.uuid4())
         agent.memory_entries.append({
@@ -445,7 +453,7 @@ def mock_base_agent():
             "timestamp": datetime.now()
         })
         return entry_id
-    
+
     async def create_task(description: str, task_type: str) -> str:
         task_id = str(uuid.uuid4())
         agent.tasks.append({
@@ -456,12 +464,12 @@ def mock_base_agent():
             "created_at": datetime.now()
         })
         return task_id
-    
+
     agent.log_observation = log_observation
     agent.log_decision = log_decision
     agent.create_task = create_task
     agent.execute = AsyncMock(return_value={"status": "completed", "result": "success"})
-    
+
     return agent
 
 
@@ -482,12 +490,12 @@ def multiply(a, b):
 class Calculator:
     def __init__(self):
         self.history = []
-    
+
     def add(self, a, b):
         result = a + b
         self.history.append(f"{a} + {b} = {result}")
         return result
-    
+
     def get_history(self):
         return self.history
 """,
@@ -525,12 +533,12 @@ class ApiClient {
     constructor(baseUrl) {
         this.baseUrl = baseUrl;
     }
-    
+
     async get(endpoint) {
         const response = await fetch(`${this.baseUrl}${endpoint}`);
         return response.json();
     }
-    
+
     async post(endpoint, data) {
         const response = await fetch(`${this.baseUrl}${endpoint}`, {
             method: 'POST',
@@ -588,7 +596,7 @@ def mock_file_system(temp_dir):
             "api.md": "# API Documentation"
         }
     }
-    
+
     def create_structure(base_path: Path, structure: dict):
         for name, content in structure.items():
             path = base_path / name
@@ -598,7 +606,7 @@ def mock_file_system(temp_dir):
             else:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(content)
-    
+
     create_structure(temp_dir, structure)
     return temp_dir
 
@@ -612,7 +620,7 @@ def benchmark_data():
         "medium_dataset": [fake.text() for _ in range(1000)],
         "large_dataset": [fake.text() for _ in range(10000)],
         "code_samples": [
-            fake.text() + "\ndef function():\n    pass" 
+            fake.text() + "\ndef function():\n    pass"
             for _ in range(500)
         ]
     }
