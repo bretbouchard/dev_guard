@@ -31,6 +31,7 @@
 ## 🚀 Quick Start
 
 ### Prerequisites
+
 - Python 3.11.x (see .python-version)
 - uv package manager (see .tool-versions)
 
@@ -38,12 +39,12 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/bretbouchard/dev-guard.git
-cd dev-guard
+git clone https://github.com/bretbouchard/dev_guard.git
+cd dev_guard
 
 # Create virtualenv and sync deps using uv
 uv venv --python python3
-uv pip sync requirements.uv
+uv sync
 
 # Optional: install pre-commit hooks
 uv run pre-commit install
@@ -90,8 +91,8 @@ Run the HTTP API for programmatic control:
 uvicorn dev_guard.api.app:app --reload --host 0.0.0.0 --port 8000
 ```
 
-- Health: curl http://localhost:8000/health
-- Docs (OpenAPI): http://localhost:8000/docs
+- Health: curl <http://localhost:8000/health>
+- Docs (OpenAPI): <http://localhost:8000/docs>
 - Inject a task:
 
 ```bash
@@ -111,13 +112,12 @@ pip install mkdocs-material
 mkdocs serve
 ```
 
-- Entry page: http://127.0.0.1:8000 (from mkdocs serve)
+- Entry page: <http://127.0.0.1:8000> (from mkdocs serve)
 - See also examples/example_api_usage.ipynb for a runnable demo.
 
 ## 🛠️ Development
 
-
-### Prerequisites
+### Dev Prerequisites
 
 - Python 3.10+
 - Git
@@ -234,5 +234,5 @@ MIT License - see [LICENSE](LICENSE) file for details.
 ## 📞 Support
 
 - 📖 [Documentation](docs/)
-- 🐛 [Issue Tracker](https://github.com/bretbouchard/dev-guard/issues)
-- 💬 [Discussions](https://github.com/bretbouchard/dev-guard/discussions)
+- 🐛 [Issue Tracker](https://github.com/bretbouchard/dev_guard/issues)
+- 💬 [Discussions](https://github.com/bretbouchard/dev_guard/discussions)
