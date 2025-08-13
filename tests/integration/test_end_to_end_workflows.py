@@ -93,8 +93,10 @@ def divide(a, b):
         ])
         repo.index.commit("Initial commit")
 
+        # Enable debug to cap swarm loop iterations in tests
+        config_data["debug"] = True
         config = Config.load_from_dict(config_data)
-        
+
         # Initialize core components
         shared_memory = SharedMemory(db_path=str(tmp_path / "memory.db"))
         vector_db = VectorDatabase(config.vector_db)

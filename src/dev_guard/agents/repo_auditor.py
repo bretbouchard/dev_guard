@@ -950,9 +950,52 @@ class RepoAuditorAgent(BaseAgent):
 
     def _should_ignore_path(self, path: str, ignore_patterns: list[str]) -> bool:
         """Check if a path should be ignored based on patterns."""
-        for pattern in ignore_patterns:
-            if fnmatch.fnmatch(path, pattern) or fnmatch.fnmatch(Path(path).name, pattern):
+        path_obj = Path(path)
+        path_str = str(path_obj)
+        
+        # CRITICAL: Hard-coded ignore for virtual environments and common directories
+        # This ensures .venv is ALWAYS ignored regardless of patterns
+        venv_indicators = [
+            '/.venv/',
+            '/venv/', 
+            '/env/',
+            '/site-packages/',
+            '/__pycache__/',
+            '/node_modules/',
+            '/build/',
+            '/dist/',
+            '/.git/',
+            '/htmlcov/',
+            '/.pytest_cache/',
+            '/.ruff_cache/',
+            '/.mypy_cache/'
+        ]
+        
+        for indicator in venv_indicators:
+            if indicator in path_str:
                 return True
+        
+        # Also check if path ends with these directories (for root level)
+        path_parts = path_obj.parts
+        if len(path_parts) > 0:
+            last_part = path_parts[-1]
+            if last_part in ['.venv', 'venv', 'env', '__pycache__', 'node_modules', '.git', 'build', 'dist']:
+                return True
+        
+        # Check for file extensions that should always be ignored
+        if path_obj.suffix in ['.pyc', '.pyo', '.log', '.tmp', '.swp', '.bak']:
+            return True
+        
+        # Original pattern matching logic (as fallback)
+        for part in path_obj.parts:
+            for pattern in ignore_patterns:
+                if fnmatch.fnmatch(part, pattern):
+                    return True
+        
+        for pattern in ignore_patterns:
+            if fnmatch.fnmatch(path_str, pattern) or fnmatch.fnmatch(path_obj.name, pattern):
+                return True
+        
         return False
 
     def _contains_potential_secrets(self, content: str) -> bool:

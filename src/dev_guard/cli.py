@@ -115,7 +115,7 @@ def start(
 
     try:
         # Load configuration
-        config = load_config(str(config_file)) if config_file else Config()
+        config = load_config(str(config_file)) if config_file else load_config()
 
         console.print("[bold green]Starting DevGuard Swarm...[/bold green]")
 
@@ -208,7 +208,7 @@ def config(
     elif validate:
         console.print("[bold blue]Validating configuration...[/bold blue]")
         try:
-            config = load_config(str(config_file)) if config_file else Config()
+            config = load_config(str(config_file)) if config_file else load_config()
             console.print("[bold green]Configuration is valid![/bold green]")
         except Exception as e:
             console.print(f"[bold red]Configuration error: {e}[/bold red]")
@@ -216,7 +216,7 @@ def config(
     elif show:
         console.print("[bold blue]Current Configuration[/bold blue]")
         try:
-            config = load_config(str(config_file)) if config_file else Config()
+            config = load_config(str(config_file)) if config_file else load_config()
 
             # Display configuration in a nice format
             table = Table(title="Configuration")
@@ -327,7 +327,7 @@ async def _list_ollama_models():
 
         # Use the updated Ollama server with correct port
         client = OllamaClient({
-            "base_url": "http://localhost:11435",
+            "base_url": "http://localhost:11434",
             "model": "gpt-oss:20b"
         })
 
@@ -401,7 +401,7 @@ async def _pull_ollama_model(model_name: str):
 
         # Use the updated Ollama server with correct port
         client = OllamaClient({
-            "base_url": "http://localhost:11435",
+            "base_url": "http://localhost:11434",
             "model": "gpt-oss:20b"
         })
 

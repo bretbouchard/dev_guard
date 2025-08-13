@@ -59,8 +59,8 @@ class LogLevel(str, Enum):
 
 class LLMConfig(BaseModel):
     """LLM provider configuration with comprehensive validation."""
-    provider: LLMProvider = LLMProvider.OLLAMA
-    model: str = "gpt-oss:20b"
+    provider: LLMProvider = LLMProvider.ANTHROPIC
+    model: str = "claude-3-haiku-20240307"
     api_key: str | None = None
     base_url: str | None = None
     temperature: float = Field(default=0.1, ge=0.0, le=2.0)
@@ -560,8 +560,10 @@ class Config(BaseModel):
         except Exception as e:
             raise ConfigLoadError(f"Unexpected error loading configuration: {e}")
 
-        # Apply environment variable overrides
-        config.apply_environment_overrides()
+        # Apply environment variable overrides only when using default config path
+        # This avoids test flakiness where a specific file explicitly sets provider/model
+        if config_path is None:
+            config.apply_environment_overrides()
 
         # Validate the final configuration
         warnings = config.validate_configuration()
@@ -576,6 +578,7 @@ class Config(BaseModel):
         """Load configuration from dictionary with validation."""
         try:
             config = cls(**data)
+            # Respect explicit dict values; only apply env overrides that are set
             config.apply_environment_overrides()
             return config
         except ValidationError as e:

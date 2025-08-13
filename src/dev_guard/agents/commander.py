@@ -236,7 +236,10 @@ class CommanderAgent(BaseAgent):
         # Get vector DB statistics safely via collection stats
         try:
             stats = self.vector_db.get_collection_stats()
-            vector_doc_count = int(stats.get("document_count", 0))
+            try:
+                vector_doc_count = int(stats.get("document_count", 0))
+            except Exception:
+                vector_doc_count = 0
         except Exception:
             vector_doc_count = 0
 
@@ -410,7 +413,7 @@ class CommanderAgent(BaseAgent):
             },
             "repositories": len(self.config.repositories),
             "vector_documents": (
-                self.vector_db.get_collection_stats().get("document_count", 0)
+                int(self.vector_db.get_collection_stats().get("document_count", 0))
                 if hasattr(self.vector_db, "get_collection_stats")
                 else 0
             ),

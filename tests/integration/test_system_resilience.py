@@ -44,6 +44,8 @@ class TestSystemResilience:
             }
         }
         
+        # Enable debug to cap swarm loop iterations in tests
+        config_data["debug"] = True
         config = Config.load_from_dict(config_data)
         shared_memory = SharedMemory(db_path=str(tmp_path / "test_memory.db"))
         vector_db = VectorDatabase(config.vector_db)

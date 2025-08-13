@@ -56,6 +56,7 @@ class TestSwarmCoordination:
         
         return Config(
             data_dir=data_dir,
+            debug=True,  # Enable test mode (limits swarm loop iterations)
             vector_db=VectorDBConfig(
                 path=f"{data_dir}/vector_db",
                 collection_name="test_collection",
@@ -84,7 +85,7 @@ class TestSwarmCoordination:
             ],
             swarm_interval=1  # Fast for testing
         )
-    
+
     @pytest_asyncio.fixture
     async def swarm(self, test_config):
         """Create DevGuard swarm instance."""
@@ -248,8 +249,9 @@ class TestSwarmCoordination:
         # Test no fallback available
         all_busy_state = SwarmState(active_agents=["code", "qa_test"])
         fallback = swarm._find_fallback_agent("code", task, all_busy_state)
+        # In debug mode, enabled fallback may still be considered; ensure None when all busy
         assert fallback is None
-    
+
     @pytest.mark.asyncio
     async def test_task_analysis_and_agent_assignment(self, swarm):
         """Test intelligent task analysis for agent assignment."""

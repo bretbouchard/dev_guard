@@ -245,11 +245,17 @@ class MCPServer:
         """Handle initialize request."""
         try:
             if request.params:
-                initialize_params = MCPInitialize(**request.params)
+                # Accept either snake_case or camelCase keys for initialize params
+                params = dict(request.params)
+                if "protocolVersion" in params:
+                    params["protocol_version"] = params.pop("protocolVersion")
+                if "clientInfo" in params:
+                    params["client_info"] = params.pop("clientInfo")
+                initialize_params = MCPInitialize(**params)
                 self.logger.info(
                     f"Client initialized: {initialize_params.client_info}"
                 )
-            
+
             result = MCPInitializeResult(
                 protocol_version="2024-11-05",
                 capabilities=self.get_server_capabilities(),
